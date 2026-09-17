@@ -1,0 +1,31 @@
+name: Post-causal LONG-only experiment
+
+on:
+  push:
+    branches:
+      - build/strategy-913
+    paths:
+      - "src/novabot913/post_causal_experiments.py"
+      - "tests/test_post_causal_experiments.py"
+      - "scripts/run_post_causal_long_only.py"
+      - ".github/workflows/post-causal-long-only.yml"
+  workflow_dispatch:
+
+jobs:
+  experiment:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e '.[dev]'
+      - name: Run LONG-only experiment against frozen corrected baseline
+        run: python scripts/run_post_causal_long_only.py
+      - name: Upload LONG-only experiment
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-causal-long-only-experiment
+          path: post_causal_long_only_experiment.json
+          if-no-files-found: error
