@@ -1,16 +1,7 @@
-name: Post-causal LONG-only OOS validation
+name: Post-causal LONG-only OOS validation (archived)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - build/strategy-913
-    paths:
-      - scripts/run_post_causal_long_only_oos.py
-      - scripts/run_corrected_reference.py
-      - src/novabot913/post_causal_experiments.py
-      - src/novabot913/temporal.py
-      - .github/workflows/post-causal-long-only-oos.yml
 
 permissions:
   contents: read
@@ -26,9 +17,9 @@ jobs:
           python-version: "3.12"
       - name: Install package
         run: python -m pip install -e '.[dev]'
-      - name: Run frozen LONG-only OOS validation
+      - name: Run archived frozen LONG-only OOS validation
         run: python scripts/run_post_causal_long_only_oos.py
-      - name: Upload OOS validation
+      - name: Upload archived OOS validation
         uses: actions/upload-artifact@v4
         with:
           name: post-causal-long-only-oos
