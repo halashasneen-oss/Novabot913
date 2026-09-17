@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import tempfile
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -21,17 +21,17 @@ from novabot913.post_causal_experiments import long_only_market_filter
 WINDOW = "2026-06-17T00:00:00Z/2026-07-17T00:00:00Z"
 DATA_START = date(2026, 6, 15)
 DATA_END = date(2026, 7, 17)
-TEST_START_MS = int(datetime(2026, 6, 17, tzinfo=timezone.utc).timestamp() * 1000)
-TEST_END_MS = int(datetime(2026, 7, 17, tzinfo=timezone.utc).timestamp() * 1000)
+TEST_START_MS = int(datetime(2026, 6, 17, tzinfo=UTC).timestamp() * 1000)
+TEST_END_MS = int(datetime(2026, 7, 17, tzinfo=UTC).timestamp() * 1000)
 MONTHS = ((2026, 6), (2026, 7))
 
 
 def _append_month(h: Any, rows: list[tuple], symbol: str, year: int, month: int) -> None:
     start_ms = int(
-        datetime.combine(DATA_START, datetime.min.time(), tzinfo=timezone.utc).timestamp() * 1000
+        datetime.combine(DATA_START, datetime.min.time(), tzinfo=UTC).timestamp() * 1000
     )
     end_ms = int(
-        datetime.combine(DATA_END, datetime.min.time(), tzinfo=timezone.utc).timestamp() * 1000
+        datetime.combine(DATA_END, datetime.min.time(), tzinfo=UTC).timestamp() * 1000
     )
     stamp = f"{year:04d}-{month:02d}"
     name = f"{symbol}-1m-{stamp}.zip"
