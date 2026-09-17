@@ -1,0 +1,31 @@
+name: Corrected causal reference
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - build/strategy-913
+    paths:
+      - scripts/run_corrected_reference.py
+      - .github/workflows/corrected-reference.yml
+      - src/novabot913/temporal.py
+
+jobs:
+  backtest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e '.[dev]'
+      - name: Run corrected Strategy 913 historical reference
+        run: python scripts/run_corrected_reference.py
+      - name: Upload corrected reference
+        uses: actions/upload-artifact@v4
+        with:
+          name: corrected-causal-reference
+          path: corrected_causal_reference.json
+          if-no-files-found: error
