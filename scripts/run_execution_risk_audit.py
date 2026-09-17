@@ -474,9 +474,7 @@ def main() -> None:
 
         static = _static_audit(h, followthrough)
         account = _account_audit(result, h)
-        paths = [
-            _path_audit(trade, raw, h, followthrough) for trade in result["trades_detail"]
-        ]
+        paths = [_path_audit(trade, raw, h, followthrough) for trade in result["trades_detail"]]
         exit_reason_checks = {
             reason: reason in ALLOWED_EXIT_REASONS for reason in result["exit_reasons"]
         }
