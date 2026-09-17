@@ -5,8 +5,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from novabot913.post_causal_analysis import BASELINE_CAUSAL_SHA
-from novabot913.post_causal_experiments import long_only_market_filter
 from run_corrected_reference import (
     _causal_filter_factory,
     _load_modules,
@@ -15,6 +13,9 @@ from run_corrected_reference import (
     _summary,
     _trade_view,
 )
+
+from novabot913.post_causal_analysis import BASELINE_CAUSAL_SHA
+from novabot913.post_causal_experiments import long_only_market_filter
 
 EXPECTED_BASELINES = {
     "may_2026": {
