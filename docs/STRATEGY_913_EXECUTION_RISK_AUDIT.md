@@ -100,6 +100,27 @@ All five artifacts below were produced by workflow run `35257145466` from audit 
 | jul_aug_2026 | `10513707527` | `sha256:51835468b8b1638007e1b3bc1eadc67462db2060d4127eccaf2b2ce4824c2144` |
 | aug_sep_2026 | `10513398861` | `sha256:f2d7f15f3616ca6546158dabc39a607f2d76e6ebdaf04250583da74c1cde775b` |
 
+## Frozen risk-exposure observation
+
+The execution is internally consistent, but the frozen sizing/leverage profile is aggressive by design. This is an observation from the existing formulas, **not** an execution defect and **not** a parameter change.
+
+Approximate equity impact of one ordinary initial-stop loss, assuming no worse gap and including the configured entry/exit fees and slippage, is:
+
+- Score 5: about **16.5% of equity**.
+  - Margin fraction: `35%`.
+  - Leverage: `50x`.
+  - Notional-to-equity: about `17.5x`.
+  - Initial stop price distance: `0.825%`.
+- Score >= 6: about **27.0% of equity**.
+  - Margin fraction: `50%`.
+  - Leverage: `75x`.
+  - Notional-to-equity: about `37.5x`.
+  - Initial stop price distance: `0.60%`.
+
+Therefore a visually small price stop does not mean a small account-level loss. The leverage and margin fractions magnify the stop into a large equity event, which is consistent with the very large historical drawdowns seen in the canonical windows.
+
+This milestone does not alter those values. Any future change to sizing, leverage, or account-level risk must be treated as a separate isolated hypothesis and validated independently.
+
 ## Interpretation
 
 Step 7 verifies that the frozen Strategy 913 simulator executes its documented sizing, leverage, margin, stop, trailing, Early Failure and 15-minute Follow-through rules consistently for all 46 trades in the five audited windows.
