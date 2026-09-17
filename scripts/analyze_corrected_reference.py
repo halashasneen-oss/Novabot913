@@ -8,7 +8,9 @@ from novabot913.post_causal_analysis import build_post_causal_report
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Analyze the frozen corrected Strategy 913 reference")
+    parser = argparse.ArgumentParser(
+        description="Analyze the frozen corrected Strategy 913 reference"
+    )
     parser.add_argument(
         "--input",
         type=Path,
