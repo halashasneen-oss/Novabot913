@@ -171,8 +171,7 @@ def _audit_trade(
         "entry_bar_exists": entry_bar is not None,
         "exit_bar_exists": exit_bar is not None,
         "entry_after_filter_by_one_minute": entry_ts == filter_ts + MINUTE_MS,
-        "held_minutes_consistent": held >= 1
-        and exit_ts - entry_ts == elapsed_minutes * MINUTE_MS,
+        "held_minutes_consistent": held >= 1 and exit_ts - entry_ts == elapsed_minutes * MINUTE_MS,
         "entry_price_matches_open_plus_slippage": bool(
             expected_entry is not None
             and _close_enough(float(trade["entry"]), expected_entry, tolerance=1e-10)
