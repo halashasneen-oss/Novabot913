@@ -27,18 +27,11 @@ MONTHS = ((2026, 6), (2026, 7))
 
 
 def _append_month(h: Any, rows: list[tuple], symbol: str, year: int, month: int) -> None:
-    start_ms = int(
-        datetime.combine(DATA_START, datetime.min.time(), tzinfo=UTC).timestamp() * 1000
-    )
-    end_ms = int(
-        datetime.combine(DATA_END, datetime.min.time(), tzinfo=UTC).timestamp() * 1000
-    )
+    start_ms = int(datetime.combine(DATA_START, datetime.min.time(), tzinfo=UTC).timestamp() * 1000)
+    end_ms = int(datetime.combine(DATA_END, datetime.min.time(), tzinfo=UTC).timestamp() * 1000)
     stamp = f"{year:04d}-{month:02d}"
     name = f"{symbol}-1m-{stamp}.zip"
-    url = (
-        "https://data.binance.vision/data/futures/um/monthly/klines/"
-        f"{symbol}/1m/{name}"
-    )
+    url = f"https://data.binance.vision/data/futures/um/monthly/klines/{symbol}/1m/{name}"
     for row in h._read_zip_rows(url):
         if row and row[0].isdigit():
             timestamp = int(row[0])
