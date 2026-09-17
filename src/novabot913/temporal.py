@@ -1,9 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Mapping, Sequence, TypeVar
-
-T = TypeVar("T", bound=Mapping[str, object])
 
 FIVE_MINUTES_MS = 5 * 60_000
 
@@ -20,7 +18,7 @@ class TemporalObservation:
         return self.timestamp + self.interval_ms
 
 
-def latest_completed_interval(
+def latest_completed_interval[T: Mapping[str, object]](
     items: Sequence[T],
     decision_ms: int,
     *,
@@ -46,13 +44,17 @@ def latest_completed_interval(
     return answer
 
 
-def latest_completed_premium(items: Sequence[T], decision_ms: int) -> T | None:
+def latest_completed_premium[T: Mapping[str, object]](
+    items: Sequence[T], decision_ms: int
+) -> T | None:
     """Select the latest fully completed Binance Premium 5m candle."""
 
     return latest_completed_interval(items, decision_ms, interval_ms=FIVE_MINUTES_MS)
 
 
-def latest_completed_taker(items: Sequence[T], decision_ms: int) -> T | None:
+def latest_completed_taker[T: Mapping[str, object]](
+    items: Sequence[T], decision_ms: int
+) -> T | None:
     """Select the latest fully completed archived Taker 5m observation."""
 
     return latest_completed_interval(items, decision_ms, interval_ms=FIVE_MINUTES_MS)
