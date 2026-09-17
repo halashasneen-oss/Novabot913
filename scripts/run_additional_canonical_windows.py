@@ -112,8 +112,7 @@ def _prepare_window(
             config["months"],
         )
         print(
-            f"{config['name']} DATA {index:02d}/{len(universe)} "
-            f"{symbol} bars={len(raw[symbol])}",
+            f"{config['name']} DATA {index:02d}/{len(universe)} {symbol} bars={len(raw[symbol])}",
             flush=True,
         )
 
