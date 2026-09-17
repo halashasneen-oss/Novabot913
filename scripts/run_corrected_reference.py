@@ -74,33 +74,28 @@ def _causal_filter_factory(h: Any, market_ref: Any):
         if key in h._market_cache:
             return h._market_cache[key]
 
-        # The reference loop labels the just-completed 1m candle by its open
-        # timestamp. Its close-based filter decision is therefore available one
-        # minute later in real time.
         decision_ms = timestamp + 60_000
         day = h.datetime.fromtimestamp(timestamp / 1000, tz=h.timezone.utc).date()
-
         metrics = h._metrics_day(symbol, day - timedelta(days=1)) + h._metrics_day(symbol, day)
         metrics.sort(key=lambda item: item["timestamp"])
 
-        # OI and Crowding intentionally preserve the legacy point-row timing.
+        # Keep OI and Crowding on the frozen legacy point-row timing.
         now = h._latest_before(metrics, timestamp)
         old = h._latest_before(metrics, timestamp - 30 * 60_000)
 
-        # Authorized correction #2: Taker is independently selected only after
-        # its represented 5m interval has fully completed.
+        # Authorized correction #2: Taker only after its represented 5m interval closes.
         taker = latest_completed_taker(metrics, decision_ms)
 
-        # Authorized correction #1: Premium uses the final 5m close only after
-        # the candle is complete. Include the prior UTC day for midnight edges.
-        premium_rows = market_ref._premium_day(symbol, day - timedelta(days=1))
-        premium_rows += market_ref._premium_day(symbol, day)
+        # Authorized correction #1: Premium final close only after its 5m candle closes.
+        # Copy cached lists before concatenation so the reference cache is never mutated.
+        premium_rows = list(market_ref._premium_day(symbol, day - timedelta(days=1))) + list(
+            market_ref._premium_day(symbol, day)
+        )
         premium_rows.sort(key=lambda item: item["timestamp"])
         premium = latest_completed_premium(premium_rows, decision_ms)
 
-        # Funding timing is deliberately unchanged.
+        # Funding timing remains frozen and unchanged.
         funding = market_ref._funding_before(symbol, timestamp)
-
         if now is None or old is None or taker is None or premium is None or funding is None:
             result = {"pass": False, "reason": "missing_archive_market_data"}
             h._market_cache[key] = result
@@ -108,20 +103,14 @@ def _causal_filter_factory(h: Any, market_ref: Any):
 
         taker_ratio = taker["taker_ratio"]
         taker_ok = (
-            taker_ratio >= h.TAKER_LONG_MIN
-            if direction == 1
-            else taker_ratio <= h.TAKER_SHORT_MAX
+            taker_ratio >= h.TAKER_LONG_MIN if direction == 1 else taker_ratio <= h.TAKER_SHORT_MAX
         )
-
         oi_change = now["oi"] / old["oi"] - 1.0 if old["oi"] else 0.0
         oi_ok = oi_change >= h.OI_MIN_RISE
-
         premium_close = premium["close"]
         premium_ok = abs(premium_close) <= h.MAX_PREMIUM_ABS
-
         funding_rate = funding["rate"]
         funding_ok = abs(funding_rate) <= h.MAX_FUNDING_ABS
-
         ratio = now["top_ratio"]
         long_share = ratio / (1.0 + ratio) if ratio > 0 else 0.5
         short_share = 1.0 - long_share
@@ -239,11 +228,7 @@ def _first_trade_divergence(
         legacy_trade = left[index] if index < len(left) else None
         corrected_trade = right[index] if index < len(right) else None
         if legacy_trade != corrected_trade:
-            return {
-                "index": index + 1,
-                "legacy": legacy_trade,
-                "corrected": corrected_trade,
-            }
+            return {"index": index + 1, "legacy": legacy_trade, "corrected": corrected_trade}
     return None
 
 
@@ -259,10 +244,9 @@ def _first_filter_divergence(
     for key in common:
         legacy_item = left[key]
         corrected_item = right[key]
-        if (
-            legacy_item["pass"] != corrected_item["pass"]
-            or legacy_item.get("checks") != corrected_item.get("checks")
-        ):
+        if legacy_item["pass"] != corrected_item["pass"] or legacy_item.get(
+            "checks"
+        ) != corrected_item.get("checks"):
             return {"key": list(key), "legacy": legacy_item, "corrected": corrected_item}
     return None
 
@@ -271,7 +255,6 @@ def _run_may(modules: dict[str, Any], causal_filter: Any) -> dict[str, Any]:
     h = modules["tmp_hybrid_zec_score7plus_60d"]
     market_ref = modules["tmp_hybrid_archive_market"]
     may = modules["tmp_followthrough15_may2026_top10"]
-
     raw = may._prepare()
 
     legacy_log: list[dict[str, Any]] = []
@@ -299,7 +282,6 @@ def _run_augsep(modules: dict[str, Any], causal_filter: Any) -> dict[str, Any]:
     h = modules["tmp_hybrid_zec_score7plus_60d"]
     market_ref = modules["tmp_hybrid_archive_market"]
     aug = modules["tmp_followthrough15_30then10"]
-
     raw = aug.prepare(aug.UNIVERSE_10)
 
     legacy_log: list[dict[str, Any]] = []
