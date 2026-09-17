@@ -20,6 +20,7 @@ from run_corrected_reference import (
 CANONICAL_STRATEGY_SHA = "158fb1c45a0cf88d549e301913f43435c337d7a1"
 MINUTE_MS = 60_000
 FIVE_MINUTES_MS = 300_000
+NEXT_OPEN_EXITS = {"EARLY_FAILURE", "FOLLOWTHROUGH_15M"}
 
 GENERIC_WINDOWS = {
     "apr_2026": {
@@ -121,7 +122,9 @@ def _audit_trade(
 ) -> dict[str, Any]:
     held = int(trade["held_minutes"])
     exit_ts = int(trade["exit_ts"])
-    entry_ts = exit_ts - (held - 1) * MINUTE_MS
+    next_open_exit = trade["reason"] in NEXT_OPEN_EXITS
+    elapsed_minutes = held if next_open_exit else held - 1
+    entry_ts = exit_ts - elapsed_minutes * MINUTE_MS
     filter_ts = entry_ts - MINUTE_MS
     direction = 1 if trade["direction"] == "LONG" else -1
     approval = approvals.get((trade["symbol"], filter_ts, direction))
@@ -168,7 +171,8 @@ def _audit_trade(
         "entry_bar_exists": entry_bar is not None,
         "exit_bar_exists": exit_bar is not None,
         "entry_after_filter_by_one_minute": entry_ts == filter_ts + MINUTE_MS,
-        "held_minutes_consistent": held >= 1 and exit_ts - entry_ts == (held - 1) * MINUTE_MS,
+        "held_minutes_consistent": held >= 1
+        and exit_ts - entry_ts == elapsed_minutes * MINUTE_MS,
         "entry_price_matches_open_plus_slippage": bool(
             expected_entry is not None
             and _close_enough(float(trade["entry"]), expected_entry, tolerance=1e-10)
@@ -185,6 +189,7 @@ def _audit_trade(
         "exit_ts": exit_ts,
         "held_minutes": held,
         "reason": trade["reason"],
+        "next_open_exit": next_open_exit,
         "entry": trade["entry"],
         "exit": trade["exit"],
         "margin": trade["margin"],
