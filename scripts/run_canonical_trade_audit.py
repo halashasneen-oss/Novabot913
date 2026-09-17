@@ -173,9 +173,7 @@ def _audit_trade(
             expected_entry is not None
             and _close_enough(float(trade["entry"]), expected_entry, tolerance=1e-10)
         ),
-        "net_matches_gross_minus_round_trip_fees": _close_enough(
-            float(trade["net"]), expected_net
-        ),
+        "net_matches_gross_minus_round_trip_fees": _close_enough(float(trade["net"]), expected_net),
     }
     checks = {**temporal_checks, **execution_checks}
 
@@ -219,14 +217,10 @@ def _audit_result(
     wins = sum(1 for item in audited_trades if float(item["reported_net"]) > 0)
     losses = len(audited_trades) - wins
     gross_profit = sum(
-        float(item["reported_net"])
-        for item in audited_trades
-        if float(item["reported_net"]) > 0
+        float(item["reported_net"]) for item in audited_trades if float(item["reported_net"]) > 0
     )
     gross_loss = -sum(
-        float(item["reported_net"])
-        for item in audited_trades
-        if float(item["reported_net"]) < 0
+        float(item["reported_net"]) for item in audited_trades if float(item["reported_net"]) < 0
     )
     expected_pf = gross_profit / gross_loss if gross_loss else (math.inf if gross_profit else 0.0)
 
