@@ -1,0 +1,42 @@
+name: Execution and risk constraint audit
+
+on:
+  push:
+    branches:
+      - build/strategy-913
+    paths:
+      - scripts/run_execution_risk_audit.py
+      - .github/workflows/execution-risk-audit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        window:
+          - apr_2026
+          - may_2026
+          - jun_jul_2026
+          - jul_aug_2026
+          - aug_sep_2026
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e '.[dev]'
+      - name: Audit frozen execution and risk constraints
+        run: python scripts/run_execution_risk_audit.py "${{ matrix.window }}"
+      - name: Upload execution and risk audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: execution-risk-audit-${{ matrix.window }}
+          path: execution_risk_audit_${{ matrix.window }}.json
+          if-no-files-found: error
