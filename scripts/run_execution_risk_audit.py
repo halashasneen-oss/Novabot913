@@ -120,7 +120,10 @@ def _resolve_entry_order(
 def _account_audit(result: dict[str, Any], h: Any) -> dict[str, Any]:
     fee_rate = float(h.FEE)
     records = [_trade_record(trade, fee_rate) for trade in result["trades_detail"]]
-    timestamps = sorted({item["entry_ts"] for item in records} | {item["exit_ts"] for item in records})
+    event_timestamps = {item["entry_ts"] for item in records} | {
+        item["exit_ts"] for item in records
+    }
+    timestamps = sorted(event_timestamps)
     wallet = float(result["start_equity"])
     active: dict[int, dict[str, Any]] = {}
     checks: list[dict[str, Any]] = []
@@ -225,7 +228,8 @@ def _account_audit(result: dict[str, Any], h: Any) -> dict[str, Any]:
             float(result["final_equity"]),
             abs_tol=1e-4,
         ),
-        "max_concurrent_matches": max_concurrent == int(result.get("max_concurrent", max_concurrent)),
+        "max_concurrent_matches": max_concurrent
+        == int(result.get("max_concurrent", max_concurrent)),
     }
     return {
         "checks": checks,
@@ -252,6 +256,7 @@ def _path_audit(
     risk = _stop_risk(leverage)
     liqdist = _liq_distance(leverage)
     stop = entry * (1.0 - direction * risk)
+    initial_stop = stop
     liq = entry * (1.0 - direction * liqdist)
     best_close = entry
     mfe = 0.0
@@ -319,10 +324,7 @@ def _path_audit(
             expected_terminal_exit = _exit_with_slippage(raw_exit, direction, slippage)
             break
 
-        if direction == 1:
-            current_follow_mfe = high / entry - 1.0
-        else:
-            current_follow_mfe = entry / low - 1.0
+        current_follow_mfe = high / entry - 1.0 if direction == 1 else entry / low - 1.0
         follow_mfe = max(follow_mfe, current_follow_mfe)
 
         if held == int(followthrough.FOLLOWTHROUGH_MINUTE):
@@ -396,7 +398,9 @@ def _path_audit(
     initial_geometry_checks = {
         "leverage_matches_score": _close(leverage, _expected_leverage(int(trade["score"]))),
         "stop_risk_matches_frozen_formula": _close(risk, float(h._stop_risk(leverage))),
-        "initial_stop_inside_liquidation": stop > liq if direction == 1 else stop < liq,
+        "initial_stop_inside_liquidation": (
+            initial_stop > liq if direction == 1 else initial_stop < liq
+        ),
     }
     if not all(initial_geometry_checks.values()):
         failures.append("initial_risk_geometry_mismatch")
