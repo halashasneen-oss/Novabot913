@@ -4,28 +4,26 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 
-from freqtrade.persistence import Trade
+from freqtrade.persistence import Order, Trade
 from freqtrade.strategy import IStrategy, stoploss_from_absolute
 from pandas import DataFrame
 
+from novabot913.execution_bus import ExecutionEvent, JsonlExecutionBus
 from novabot913.signal_bus import (
     JsonlIntentBus,
     Strategy913Intent,
     canonical_leverage,
     canonical_margin_fraction,
     canonical_stop_price_risk,
+    make_position_id,
 )
 
 _DEFAULT_INTENT_PATH = "/freqtrade/user_data/data/strategy913_intents.jsonl"
+_DEFAULT_EXECUTION_PATH = "/freqtrade/user_data/data/strategy913_execution.jsonl"
 
 
 class Strategy913Executor(IStrategy):
-    """Freqtrade execution adapter for frozen Strategy 913 intents.
-
-    Strategy 913 remains the decision engine. This class only converts causal,
-    timestamped intents into Freqtrade entry, exit, sizing, leverage and stop
-    instructions.
-    """
+    """Freqtrade execution adapter for frozen Strategy 913 intents."""
 
     INTERFACE_VERSION = 3
 
@@ -56,6 +54,10 @@ class Strategy913Executor(IStrategy):
     def intent_path(self) -> Path:
         return Path(os.environ.get("NOVABOT913_INTENT_FILE", _DEFAULT_INTENT_PATH))
 
+    @property
+    def execution_path(self) -> Path:
+        return Path(os.environ.get("NOVABOT913_EXECUTION_FILE", _DEFAULT_EXECUTION_PATH))
+
     def _intents(self, pair: str) -> list[Strategy913Intent]:
         return JsonlIntentBus(self.intent_path).for_symbol(pair)
 
@@ -63,7 +65,7 @@ class Strategy913Executor(IStrategy):
     def _tag(intent: Strategy913Intent) -> str:
         breakout = intent.breakout_level or 0.0
         score = intent.score or 0
-        return f"s913|{score}|{breakout:.12g}|{intent.candle_open_ms}"
+        return f"s913|{score}|{breakout!r}|{intent.candle_open_ms}"
 
     @staticmethod
     def _parse_tag(entry_tag: str | None) -> tuple[int, float, int] | None:
@@ -177,9 +179,12 @@ class Strategy913Executor(IStrategy):
             return 0.0
 
         score, _, _ = parsed
+        requested_leverage = canonical_leverage(score)
+        if abs(leverage - requested_leverage) > 1e-9:
+            return 0.0
+
         total_stake = self.wallets.get_total_stake_amount()
         requested = total_stake * canonical_margin_fraction(score)
-
         if requested > max_stake:
             return 0.0
         if min_stake is not None and requested < min_stake:
@@ -209,16 +214,19 @@ class Strategy913Executor(IStrategy):
             return False
 
         expected_side = "short" if side == "short" else "long"
-        expected = Strategy913Intent(
-            symbol=pair,
-            candle_open_ms=candle_open_ms,
-            decision_ms=decision_ms,
-            intent="enter",
-            side=expected_side,
-            score=score,
-            breakout_level=breakout,
-        )
-        return any(intent == expected for intent in self._intents(pair))
+        position_id = make_position_id(pair, candle_open_ms, expected_side)
+        for intent in self._intents(pair):
+            if (
+                intent.intent == "enter"
+                and intent.position_id == position_id
+                and intent.side == expected_side
+                and intent.score == score
+                and intent.breakout_level is not None
+                and abs(intent.breakout_level - breakout) <= 1e-12
+                and intent.decision_ms == decision_ms
+            ):
+                return True
+        return False
 
     def custom_stoploss(
         self,
@@ -234,13 +242,15 @@ class Strategy913Executor(IStrategy):
         if parsed is None:
             return None
 
-        score, _, _ = parsed
+        _, _, candle_open_ms = parsed
+        side = "short" if trade.is_short else "long"
+        position_id = make_position_id(pair, candle_open_ms, side)
         current_ms = int(current_time.astimezone(UTC).timestamp() * 1000)
         stop_updates = [
             intent
             for intent in self._intents(pair)
             if intent.intent == "stop_update"
-            and intent.side == trade.trade_direction
+            and intent.position_id == position_id
             and intent.decision_ms <= current_ms
         ]
 
@@ -254,7 +264,7 @@ class Strategy913Executor(IStrategy):
                     leverage=trade.leverage,
                 )
 
-        price_risk = canonical_stop_price_risk(canonical_leverage(score))
+        price_risk = canonical_stop_price_risk(trade.leverage)
         stop_price = (
             trade.open_rate * (1.0 + price_risk)
             if trade.is_short
@@ -266,3 +276,42 @@ class Strategy913Executor(IStrategy):
             is_short=trade.is_short,
             leverage=trade.leverage,
         )
+
+    def order_filled(
+        self,
+        pair: str,
+        trade: Trade,
+        order: Order,
+        current_time: datetime,
+        **kwargs,
+    ) -> None:
+        parsed = self._parse_tag(trade.enter_tag)
+        if parsed is None:
+            return
+
+        score, breakout, candle_open_ms = parsed
+        side = "short" if trade.is_short else "long"
+        position_id = make_position_id(pair, candle_open_ms, side)
+        filled_at = order.order_filled_utc or current_time
+        timestamp_ms = int(filled_at.astimezone(UTC).timestamp() * 1000)
+        order_key = order.order_id or f"{getattr(trade, 'id', 'na')}:{timestamp_ms}"
+        event_type = "entry_fill" if order.ft_is_entry else "exit_fill"
+        event_id = f"{event_type}:{order_key}"
+
+        event = ExecutionEvent(
+            event_id=event_id,
+            symbol=pair,
+            event=event_type,
+            side=side,
+            timestamp_ms=timestamp_ms,
+            price=float(order.safe_price),
+            leverage=float(trade.leverage),
+            position_id=position_id,
+            order_id=order.order_id,
+            score=score if order.ft_is_entry else None,
+            breakout_level=breakout if order.ft_is_entry else None,
+            source_candle_open_ms=candle_open_ms if order.ft_is_entry else None,
+            reason=None if order.ft_is_entry else (order.ft_order_tag or trade.exit_reason),
+        )
+        JsonlExecutionBus(self.execution_path).append_once(event)
+\n
