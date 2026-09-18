@@ -1,0 +1,42 @@
+name: Strategy 913 beast three-mod research
+
+on:
+  push:
+    branches:
+      - research/strategy-913-beast-3mod
+    paths:
+      - scripts/run_beast_three_mod_experiment.py
+      - .github/workflows/beast-three-mod-research.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  research:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        window:
+          - apr_2026
+          - may_2026
+          - jun_jul_2026
+          - jul_aug_2026
+          - aug_sep_2026
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e '.[dev]'
+      - name: Run three-mod research
+        run: python scripts/run_beast_three_mod_experiment.py --window "${{ matrix.window }}"
+      - name: Upload research result
+        uses: actions/upload-artifact@v4
+        with:
+          name: beast-three-mod-${{ matrix.window }}
+          path: beast_three_mod_${{ matrix.window }}.json
+          if-no-files-found: error
