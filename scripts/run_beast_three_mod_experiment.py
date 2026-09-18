@@ -363,13 +363,17 @@ def install_beast_patch(h: Any):
     source = _replace_once(
         source,
         '        # Arm fresh 4H reconstructed extreme setups at completed 4H close.\n',
-        reentry_code + '        # Arm fresh 4H reconstructed extreme setups at completed 4H close.\n',
+        reentry_code
+        + '        # Arm fresh 4H reconstructed extreme setups at completed 4H close.\n',
         "reentry processing",
     )
 
     source = _replace_once(
         source,
-        '            if symbol in positions or symbol in armed or symbol in retests or symbol in pending_entries:\n',
+        (
+            '            if symbol in positions or symbol in armed '
+            'or symbol in retests or symbol in pending_entries:\n'
+        ),
         '            if (\n'
         '                symbol in positions\n'
         '                or symbol in armed\n'
