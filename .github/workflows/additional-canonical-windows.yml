@@ -31,3 +31,4 @@ jobs:
           name: additional-canonical-windows
           path: additional_canonical_windows.json
           if-no-files-found: error
+          retention-days: 1
