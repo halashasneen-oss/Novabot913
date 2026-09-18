@@ -134,12 +134,6 @@ def test_frozen_stop_and_trailing_policy() -> None:
 
     assert canonical_progressive_trail(risk_75x, 1.49 * risk_75x) is None
     assert canonical_progressive_trail(risk_75x, 1.5 * risk_75x) == pytest.approx(risk_75x)
-    assert canonical_progressive_trail(risk_75x, 2.5 * risk_75x) == pytest.approx(
-        0.75 * risk_75x
-    )
-    assert canonical_progressive_trail(risk_75x, 4.0 * risk_75x) == pytest.approx(
-        0.50 * risk_75x
-    )
-    assert canonical_progressive_trail(risk_75x, 6.0 * risk_75x) == pytest.approx(
-        0.35 * risk_75x
-    )
+    assert canonical_progressive_trail(risk_75x, 2.5 * risk_75x) == pytest.approx(0.75 * risk_75x)
+    assert canonical_progressive_trail(risk_75x, 4.0 * risk_75x) == pytest.approx(0.50 * risk_75x)
+    assert canonical_progressive_trail(risk_75x, 6.0 * risk_75x) == pytest.approx(0.35 * risk_75x)
