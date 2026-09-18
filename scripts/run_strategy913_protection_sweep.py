@@ -81,11 +81,9 @@ def _variant_name(
     protect_stop_r: float,
     break_even_trigger_r: float,
 ) -> str:
-    return (
-        f"p{protect_trigger_r:.2f}_"
-        f"s{protect_stop_r:.2f}_"
-        f"be{break_even_trigger_r:.2f}"
-    ).replace(".", "p")
+    return (f"p{protect_trigger_r:.2f}_s{protect_stop_r:.2f}_be{break_even_trigger_r:.2f}").replace(
+        ".", "p"
+    )
 
 
 def install_protection_patch(
