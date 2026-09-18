@@ -1,0 +1,33 @@
+name: Strategy 913 beast Aug-Sep fast verify
+
+on:
+  push:
+    branches:
+      - research/strategy-913-beast-3mod
+    paths:
+      - scripts/run_beast_augsep_fast.py
+      - .github/workflows/beast-augsep-fast.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e '.[dev]'
+      - name: Run Aug-Sep variant only
+        run: python scripts/run_beast_augsep_fast.py
+      - name: Upload result
+        uses: actions/upload-artifact@v4
+        with:
+          name: beast-augsep-fast
+          path: beast_augsep_fast.json
+          if-no-files-found: error
