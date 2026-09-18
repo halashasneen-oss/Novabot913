@@ -29,6 +29,9 @@ exclude = [
   "reference/strategy913",
   "scripts/run_strategy913_ablation.py",
   "scripts/run_strategy913_ytd_protect.py",
+  "scripts/run_strategy913r1_reference.py",
+  "scripts/run_strategy913r1_ytd.py",
+  "src/novabot913/strategy913r1_engine.py",
 ]
 
 [tool.ruff.lint]
