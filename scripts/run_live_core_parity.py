@@ -17,7 +17,6 @@ from run_corrected_reference import (
     _stage_reference_files,
     _summary,
 )
-
 from novabot913.execution_bus import ExecutionEvent
 from novabot913.live_engine import Strategy913LiveEngine
 from novabot913.signal_bus import (
@@ -34,6 +33,7 @@ from novabot913.strategy_core import (
     aggregate,
     evaluate_market_filters,
 )
+
 CANONICAL_STRATEGY_SHA = "158fb1c45a0cf88d549e301913f43435c337d7a1"
 
 
