@@ -132,11 +132,7 @@ class RollingPerformanceTracker:
 
 def regime_filter(symbol: str, timestamp: int, data: dict[Any, Any]) -> dict[str, Any]:
     decision_ms = int(timestamp) + 60_000
-    completed = [
-        bar
-        for bar in data[240]
-        if int(bar[0]) + FOUR_HOURS_MS <= decision_ms
-    ]
+    completed = [bar for bar in data[240] if int(bar[0]) + FOUR_HOURS_MS <= decision_ms]
 
     if len(completed) < REGIME_LOOKBACK_4H + 1:
         return {
@@ -151,8 +147,7 @@ def regime_filter(symbol: str, timestamp: int, data: dict[Any, Any]) -> dict[str
     sample = completed[-(REGIME_LOOKBACK_4H + 1) :]
     closes = [float(bar[4]) for bar in sample]
     path = sum(
-        abs(current / previous - 1.0)
-        for previous, current in zip(closes, closes[1:], strict=False)
+        abs(current / previous - 1.0) for previous, current in zip(closes, closes[1:], strict=False)
     )
     net_move = abs(closes[-1] / closes[0] - 1.0)
     efficiency = net_move / path if path > 0 else 0.0
