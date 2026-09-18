@@ -701,3 +701,40 @@ def main() -> None:
             "canonical_strategy_sha": CANONICAL_STRATEGY_SHA,
             "strategy_parameters_modified": False,
             "window_name": args.window,
+            "window": window,
+            "canonical": canonical_summary,
+            "replay": {
+                key: value
+                for key, value in replay.items()
+                if key != "trades_detail"
+            },
+            "summary_checks": checks,
+            "first_trade_divergence": trade_divergence,
+            "filter_mismatch_count": len(filter_mismatches),
+            "filter_mismatches": filter_mismatches,
+            "canonical_trades": [
+                _canonical_trade_view(item)
+                for item in canonical_result["trades_detail"]
+            ],
+            "replay_trades": [
+                _replay_trade_view(item)
+                for item in replay["trades_detail"]
+            ],
+            "pass": passed,
+        }
+        output = Path(f"live_core_parity_{args.window}.json")
+        output.write_text(
+            json.dumps(report, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        print(
+            "LIVE_CORE_PARITY="
+            + json.dumps(report, sort_keys=True),
+            flush=True,
+        )
+        if not passed:
+            raise SystemExit("Strategy 913 live-core historical parity failed")
+
+
+if __name__ == "__main__":
+    main()
