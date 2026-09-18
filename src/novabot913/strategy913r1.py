@@ -150,7 +150,10 @@ def regime_filter(symbol: str, timestamp: int, data: dict[Any, Any]) -> dict[str
 
     sample = completed[-(REGIME_LOOKBACK_4H + 1) :]
     closes = [float(bar[4]) for bar in sample]
-    path = sum(\n        abs(current / previous - 1.0)\n        for previous, current in zip(closes, closes[1:], strict=False)\n    )
+    path = sum(
+        abs(current / previous - 1.0)
+        for previous, current in zip(closes, closes[1:], strict=False)
+    )
     net_move = abs(closes[-1] / closes[0] - 1.0)
     efficiency = net_move / path if path > 0 else 0.0
     passed = efficiency >= REGIME_MIN_EFFICIENCY
