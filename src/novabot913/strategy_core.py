@@ -348,11 +348,7 @@ def breakout_level(
     if index_3m < 3:
         return None
     prior_3m = data_3m[index_3m - 3 : index_3m]
-    return (
-        max(bar[2] for bar in prior_3m)
-        if direction == 1
-        else min(bar[3] for bar in prior_3m)
-    )
+    return max(bar[2] for bar in prior_3m) if direction == 1 else min(bar[3] for bar in prior_3m)
 
 
 def latest_before(

@@ -111,8 +111,6 @@ def test_non_contiguous_candle_is_rejected() -> None:
     first = [_bar(0, open_price=1.0, high=1.0, low=1.0, close=1.0)]
     engine.process_closed_candle(symbol, first, [], _allow_market)
 
-    skipped = first + [
-        _bar(2 * MINUTE_MS, open_price=1.0, high=1.0, low=1.0, close=1.0)
-    ]
+    skipped = first + [_bar(2 * MINUTE_MS, open_price=1.0, high=1.0, low=1.0, close=1.0)]
     with pytest.raises(ValueError, match="non-contiguous"):
         engine.process_closed_candle(symbol, skipped, [], _allow_market)

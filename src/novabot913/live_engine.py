@@ -189,8 +189,7 @@ class Strategy913LiveEngine:
             return []
         if state.last_processed_ms >= 0 and candle_open_ms != state.last_processed_ms + MINUTE_MS:
             raise ValueError(
-                f"non-contiguous candle for {symbol}: "
-                f"{state.last_processed_ms} -> {candle_open_ms}"
+                f"non-contiguous candle for {symbol}: {state.last_processed_ms} -> {candle_open_ms}"
             )
 
         intents: list[Strategy913Intent] = []
@@ -257,9 +256,7 @@ class Strategy913LiveEngine:
                                 signal_close=armed.signal_close,
                                 confirm_ts=candle_open_ms,
                                 breakout_level=level,
-                                expires_ms=(
-                                    candle_open_ms + RETEST_WINDOW_MINUTES * MINUTE_MS
-                                ),
+                                expires_ms=(candle_open_ms + RETEST_WINDOW_MINUTES * MINUTE_MS),
                             )
                             state.armed = None
 

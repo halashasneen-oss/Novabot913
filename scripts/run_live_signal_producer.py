@@ -69,11 +69,7 @@ def run_cycle(
             bootstrapped += 1
             continue
 
-        missing = [
-            bar
-            for bar in one_minute
-            if state.last_processed_ms < bar[0] <= latest_open
-        ]
+        missing = [bar for bar in one_minute if state.last_processed_ms < bar[0] <= latest_open]
         if missing and missing[0][0] != state.last_processed_ms + MINUTE_MS:
             raise RuntimeError(
                 f"catch-up history gap for {symbol}; refusing to skip causal candles"
