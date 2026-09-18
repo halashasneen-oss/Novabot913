@@ -38,6 +38,7 @@ jobs:
           PY
       - name: Load Strategy913Executor in Freqtrade
         run: |
+          mkdir -p user_data
           freqtrade list-strategies \
             --strategy-path integrations/freqtrade/user_data/strategies \
             | tee /tmp/strategies.txt
