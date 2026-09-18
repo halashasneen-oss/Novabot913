@@ -97,23 +97,22 @@ def install_protection_patch(
     source = _replace_once(
         source,
         '        "early_failure_exits": 0,\n',
-        '        "early_failure_exits": 0,\n'
-        '        "followthrough_15m_exits": 0,\n',
+        '        "early_failure_exits": 0,\n        "followthrough_15m_exits": 0,\n',
         "stats",
     )
 
     old_pending_exit = (
-        '            if bar is not None:\n'
+        "            if bar is not None:\n"
         '                close_position(symbol, bar[1], "EARLY_FAILURE", ts)\n'
         '                stats["early_failure_exits"] += 1\n'
     )
     new_pending_exit = (
-        '            if bar is not None:\n'
+        "            if bar is not None:\n"
         '                reason = positions[symbol].pop("pending_early_reason", "EARLY_FAILURE")\n'
-        '                close_position(symbol, bar[1], reason, ts)\n'
+        "                close_position(symbol, bar[1], reason, ts)\n"
         '                if reason == "EARLY_FAILURE":\n'
         '                    stats["early_failure_exits"] += 1\n'
-        '                else:\n'
+        "                else:\n"
         '                    stats["followthrough_15m_exits"] += 1\n'
     )
     source = _replace_once(
@@ -126,29 +125,28 @@ def install_protection_patch(
     source = _replace_once(
         source,
         '                "pending_stop": None,\n',
-        '                "pending_stop": None,\n'
-        '                "followthrough_mfe": 0.0,\n',
+        '                "pending_stop": None,\n                "followthrough_mfe": 0.0,\n',
         "position followthrough state",
     )
 
     old_manage = (
-        '            if direction == 1:\n'
+        "            if direction == 1:\n"
         '                pos["best_close"] = max(pos["best_close"], close)\n'
     )
     new_manage = (
-        '            if direction == 1:\n'
+        "            if direction == 1:\n"
         '                current_follow_mfe = high / pos["entry"] - 1.0\n'
-        '            else:\n'
+        "            else:\n"
         '                current_follow_mfe = pos["entry"] / low - 1.0\n'
         '            pos["followthrough_mfe"] = max(\n'
         '                pos["followthrough_mfe"], current_follow_mfe\n'
-        '            )\n'
+        "            )\n"
         '            if pos["held_minutes"] == FOLLOWTHROUGH_MINUTE:\n'
         '                close_move = direction * (close / pos["entry"] - 1.0)\n'
         '                if close_move < MIN_CLOSE_MOVE and pos["followthrough_mfe"] < MIN_MFE:\n'
         '                    pos["pending_early_reason"] = "FOLLOWTHROUGH_15M"\n'
-        '                    pending_early[symbol] = ts + 60_000\n'
-        '            if direction == 1:\n'
+        "                    pending_early[symbol] = ts + 60_000\n"
+        "            if direction == 1:\n"
         '                pos["best_close"] = max(pos["best_close"], close)\n'
     )
     source = _replace_once(
@@ -158,7 +156,7 @@ def install_protection_patch(
         "followthrough management",
     )
 
-    old_trail = '''            trail_distance = _progressive_trail(pos["risk"], pos["mfe"])
+    old_trail = """            trail_distance = _progressive_trail(pos["risk"], pos["mfe"])
             if trail_distance is not None:
                 be = pos["entry"] * (1.0 + direction * BE_LOCK)
                 trail = (
@@ -168,8 +166,8 @@ def install_protection_patch(
                 )
                 proposed = max(be, trail) if direction == 1 else min(be, trail)
                 pos["pending_stop"] = proposed
-'''
-    new_trail = '''            proposed = None
+"""
+    new_trail = """            proposed = None
             if pos["mfe"] >= PROTECT_TRIGGER_R * pos["risk"]:
                 protect = pos["entry"] * (
                     1.0 - direction * PROTECT_STOP_R * pos["risk"]
@@ -208,7 +206,7 @@ def install_protection_patch(
                     pos["pending_stop"] = max(existing, proposed)
                 else:
                     pos["pending_stop"] = min(existing, proposed)
-'''
+"""
     source = _replace_once(
         source,
         old_trail,
@@ -240,18 +238,11 @@ def _append_month(
     data_start: date,
     data_end: date,
 ) -> None:
-    start_ms = int(
-        datetime.combine(data_start, datetime.min.time(), tzinfo=UTC).timestamp() * 1000
-    )
-    end_ms = int(
-        datetime.combine(data_end, datetime.min.time(), tzinfo=UTC).timestamp() * 1000
-    )
+    start_ms = int(datetime.combine(data_start, datetime.min.time(), tzinfo=UTC).timestamp() * 1000)
+    end_ms = int(datetime.combine(data_end, datetime.min.time(), tzinfo=UTC).timestamp() * 1000)
     stamp = f"{year:04d}-{month:02d}"
     name = f"{symbol}-1m-{stamp}.zip"
-    url = (
-        "https://data.binance.vision/data/futures/um/monthly/klines/"
-        f"{symbol}/1m/{name}"
-    )
+    url = f"https://data.binance.vision/data/futures/um/monthly/klines/{symbol}/1m/{name}"
     for row in h._read_zip_rows(url):
         if row and row[0].isdigit():
             timestamp = int(row[0])
@@ -441,8 +432,7 @@ def main() -> None:
         baseline = _run_engine(h, baseline_run, raw, shared_filter)
         baseline_summary = _summary(baseline)
         print(
-            "PROTECTION_SWEEP_BASELINE="
-            + json.dumps(baseline_summary, sort_keys=True),
+            "PROTECTION_SWEEP_BASELINE=" + json.dumps(baseline_summary, sort_keys=True),
             flush=True,
         )
 
@@ -516,10 +506,7 @@ def main() -> None:
                 "variants": len(combinations),
             },
             "baseline": baseline_summary,
-            "baseline_trades": [
-                _trade_view(trade)
-                for trade in baseline["trades_detail"]
-            ],
+            "baseline_trades": [_trade_view(trade) for trade in baseline["trades_detail"]],
             "ranked": ranked,
             "results": results,
         }
@@ -530,8 +517,7 @@ def main() -> None:
             encoding="utf-8",
         )
         print(
-            "STRATEGY913_PROTECTION_SWEEP="
-            + json.dumps(report, sort_keys=True),
+            "STRATEGY913_PROTECTION_SWEEP=" + json.dumps(report, sort_keys=True),
             flush=True,
         )
 
