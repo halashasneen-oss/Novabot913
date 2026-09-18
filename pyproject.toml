@@ -25,7 +25,11 @@ testpaths = ["tests"]
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-exclude = ["reference/strategy913", "scripts/run_strategy913_ablation.py"]
+exclude = [
+  "reference/strategy913",
+  "scripts/run_strategy913_ablation.py",
+  "scripts/run_strategy913_ytd_protect.py",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
