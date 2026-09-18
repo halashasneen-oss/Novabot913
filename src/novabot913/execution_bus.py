@@ -81,7 +81,8 @@ class JsonlExecutionBus:
                 try:
                     event = ExecutionEvent.from_json(payload)
                 except (TypeError, ValueError, json.JSONDecodeError) as exc:
-                    raise ValueError(f"invalid execution event at {self.path}:{line_number}") from exc
+                    message = f"invalid execution event at {self.path}:{line_number}"
+                    raise ValueError(message) from exc
                 if event.event_id in seen:
                     raise ValueError(f"duplicate execution event_id: {event.event_id}")
                 seen.add(event.event_id)
@@ -98,4 +99,4 @@ class JsonlExecutionBus:
             handle.write(event.to_json() + "\n")
             handle.flush()
             os.fsync(handle.fileno())
-        return True
+        return True\n
