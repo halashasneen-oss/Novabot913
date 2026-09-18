@@ -18,8 +18,12 @@ from run_strategy913_ablation import UNIVERSE_10, install_beast_patch
 
 TEST_START = datetime(2026, 1, 1, tzinfo=UTC)
 DATA_START = date(2025, 12, 30)
-LIVE_BASE = "https://fapi.binance.com"
-FUTURES_DATA_BASE = "https://fapi.binance.com/futures/data"
+SNAPSHOT_FILES = (
+    "research_data/live_2026-09-18_part1.json",
+    "research_data/live_2026-09-18_part2.json",
+    "research_data/live_2026-09-18_part3.json",
+    "research_data/live_2026-09-18_part4.json",
+)
 
 
 def _next_month(day: date) -> date:
@@ -32,8 +36,31 @@ def _month_start(day: date) -> date:
     return date(day.year, day.month, 1)
 
 
-def _minute_floor_ms(value: datetime) -> int:
-    return int(value.timestamp() * 1000) // 60_000 * 60_000
+def _load_snapshot() -> dict[str, Any]:
+    merged: dict[str, Any] = {
+        "snapshot_start_ms": None,
+        "snapshot_end_ms_exclusive": None,
+        "symbols": {},
+    }
+    root = Path(__file__).resolve().parents[1]
+    for relative in SNAPSHOT_FILES:
+        payload = json.loads((root / relative).read_text(encoding="utf-8"))
+        start_ms = int(payload["snapshot_start_ms"])
+        end_ms = int(payload["snapshot_end_ms_exclusive"])
+        if merged["snapshot_start_ms"] is None:
+            merged["snapshot_start_ms"] = start_ms
+            merged["snapshot_end_ms_exclusive"] = end_ms
+        elif (
+            start_ms != merged["snapshot_start_ms"]
+            or end_ms != merged["snapshot_end_ms_exclusive"]
+        ):
+            raise RuntimeError("live snapshot files do not share the same time bounds")
+        merged["symbols"].update(payload["symbols"])
+
+    missing = [symbol for symbol in UNIVERSE_10 if symbol not in merged["symbols"]]
+    if missing:
+        raise RuntimeError(f"missing live snapshot symbols: {missing}")
+    return merged
 
 
 def _append_zip_rows(
@@ -47,6 +74,7 @@ def _append_zip_rows(
         source = h._read_zip_rows(url)
     except Exception:
         return False
+
     for row in source:
         if not row or not row[0].isdigit():
             continue
@@ -101,130 +129,62 @@ def _append_daily_price(
         raise RuntimeError(f"missing daily price archive: {symbol} {stamp}")
 
 
-def _append_live_price(
-    h: Any,
-    rows: list[tuple],
+def _snapshot_price_rows(
+    snapshot: dict[str, Any],
     symbol: str,
-    start_ms: int,
     end_ms: int,
-) -> None:
-    cursor = start_ms
-    while cursor < end_ms:
-        payload = h._get_json(
-            LIVE_BASE + "/fapi/v1/klines",
-            {
-                "symbol": symbol,
-                "interval": "1m",
-                "startTime": cursor,
-                "endTime": end_ms - 1,
-                "limit": 1500,
-            },
-        )
-        if not payload:
-            break
-        last_timestamp = None
-        for row in payload:
-            timestamp = int(row[0])
-            last_timestamp = timestamp
-            if timestamp + 60_000 > end_ms:
-                continue
-            rows.append(
-                (
-                    timestamp,
-                    float(row[1]),
-                    float(row[2]),
-                    float(row[3]),
-                    float(row[4]),
-                    float(row[5]),
-                )
+) -> list[tuple]:
+    rows: list[tuple] = []
+    for row in snapshot["symbols"][symbol]["price_1m"]:
+        timestamp = int(row[0])
+        if timestamp + 60_000 > end_ms:
+            continue
+        rows.append(
+            (
+                timestamp,
+                float(row[1]),
+                float(row[2]),
+                float(row[3]),
+                float(row[4]),
+                float(row[5]),
             )
-        if last_timestamp is None:
-            break
-        next_cursor = last_timestamp + 60_000
-        if next_cursor <= cursor:
-            raise RuntimeError(f"live kline pagination stalled for {symbol}")
-        cursor = next_cursor
+        )
+    return rows
 
 
 def _download_symbol_ytd(
     h: Any,
+    snapshot: dict[str, Any],
     symbol: str,
     end_dt: datetime,
     end_ms: int,
 ) -> list[tuple]:
-    start_ms = int(datetime.combine(DATA_START, datetime.min.time(), tzinfo=UTC).timestamp() * 1000)
+    start_ms = int(
+        datetime.combine(DATA_START, datetime.min.time(), tzinfo=UTC).timestamp() * 1000
+    )
     rows: list[tuple] = []
 
     current_month = _month_start(DATA_START)
-    live_month = _month_start(end_dt.date())
-    while current_month < live_month:
+    snapshot_month = _month_start(end_dt.date())
+    while current_month < snapshot_month:
         _append_monthly_price(h, rows, symbol, current_month, start_ms, end_ms)
         current_month = _next_month(current_month)
 
-    day = live_month
-    while day < end_dt.date():
-        _append_daily_price(h, rows, symbol, day, start_ms, end_ms)
-        day += timedelta(days=1)
+    current_day = snapshot_month
+    while current_day < end_dt.date():
+        _append_daily_price(h, rows, symbol, current_day, start_ms, end_ms)
+        current_day += timedelta(days=1)
 
-    live_start_ms = int(
-        datetime.combine(end_dt.date(), datetime.min.time(), tzinfo=UTC).timestamp() * 1000
-    )
-    _append_live_price(h, rows, symbol, live_start_ms, end_ms)
-
+    rows.extend(_snapshot_price_rows(snapshot, symbol, end_ms))
     deduplicated = {bar[0]: bar for bar in rows}
-    ordered = [deduplicated[timestamp] for timestamp in sorted(deduplicated)]
-    return ordered
+    return [deduplicated[timestamp] for timestamp in sorted(deduplicated)]
 
 
-def _live_metrics_day(
-    h: Any,
-    symbol: str,
-    day: date,
-    end_ms: int,
-) -> list[dict[str, float | int]]:
-    start_ms = int(datetime.combine(day, datetime.min.time(), tzinfo=UTC).timestamp() * 1000)
-    day_end_ms = int(
-        datetime.combine(day + timedelta(days=1), datetime.min.time(), tzinfo=UTC).timestamp()
-        * 1000
-    )
-    stop_ms = min(day_end_ms - 1, end_ms - 1)
-    if stop_ms <= start_ms:
-        return []
-
-    oi = h._get_json(
-        FUTURES_DATA_BASE + "/openInterestHist",
-        {
-            "symbol": symbol,
-            "period": "5m",
-            "startTime": start_ms,
-            "endTime": stop_ms,
-            "limit": 500,
-        },
-    )
-    taker = h._get_json(
-        FUTURES_DATA_BASE + "/takerlongshortRatio",
-        {
-            "symbol": symbol,
-            "period": "5m",
-            "startTime": start_ms,
-            "endTime": stop_ms,
-            "limit": 500,
-        },
-    )
-    top = h._get_json(
-        FUTURES_DATA_BASE + "/topLongShortPositionRatio",
-        {
-            "symbol": symbol,
-            "period": "5m",
-            "startTime": start_ms,
-            "endTime": stop_ms,
-            "limit": 500,
-        },
-    )
-
-    oi_by_ts = {int(item["timestamp"]): item for item in oi}
-    taker_by_ts = {int(item["timestamp"]): item for item in taker}
-    top_by_ts = {int(item["timestamp"]): item for item in top}
+def _snapshot_metric_rows(snapshot: dict[str, Any], symbol: str) -> list[dict[str, Any]]:
+    data = snapshot["symbols"][symbol]
+    oi_by_ts = {int(item["timestamp"]): item for item in data["oi_5m"]}
+    taker_by_ts = {int(item["timestamp"]): item for item in data["taker_5m"]}
+    top_by_ts = {int(item["timestamp"]): item for item in data["top_position_5m"]}
     timestamps = sorted(set(oi_by_ts) & set(taker_by_ts) & set(top_by_ts))
 
     return [
@@ -238,96 +198,63 @@ def _live_metrics_day(
     ]
 
 
-def _live_premium_day(
-    h: Any,
-    symbol: str,
-    day: date,
-    end_ms: int,
-) -> list[dict[str, float | int]]:
-    start_ms = int(datetime.combine(day, datetime.min.time(), tzinfo=UTC).timestamp() * 1000)
-    payload = h._get_json(
-        LIVE_BASE + "/fapi/v1/premiumIndexKlines",
-        {
-            "symbol": symbol,
-            "interval": "5m",
-            "startTime": start_ms,
-            "endTime": end_ms - 1,
-            "limit": 1500,
-        },
-    )
+def _snapshot_premium_rows(snapshot: dict[str, Any], symbol: str, end_ms: int):
     return [
         {"timestamp": int(row[0]), "close": float(row[4])}
-        for row in payload
+        for row in snapshot["symbols"][symbol]["premium_5m"]
         if int(row[0]) + 5 * 60_000 <= end_ms
     ]
 
 
-def _live_funding_day(
-    h: Any,
-    symbol: str,
-    day: date,
-    end_ms: int,
-) -> list[dict[str, float | int]]:
-    start_ms = int(datetime.combine(day, datetime.min.time(), tzinfo=UTC).timestamp() * 1000)
-    payload = h._get_json(
-        LIVE_BASE + "/fapi/v1/fundingRate",
-        {
-            "symbol": symbol,
-            "startTime": start_ms,
-            "endTime": end_ms - 1,
-            "limit": 1000,
-        },
-    )
+def _snapshot_funding_rows(snapshot: dict[str, Any], symbol: str):
     return [
         {
             "timestamp": int(item["fundingTime"]),
             "rate": float(item["fundingRate"]),
         }
-        for item in payload
+        for item in snapshot["symbols"][symbol]["funding"]
     ]
 
 
-def _install_live_day_fallbacks(
+def _install_snapshot_fallbacks(
     h: Any,
     market_ref: Any,
+    snapshot: dict[str, Any],
     end_dt: datetime,
     end_ms: int,
 ) -> None:
-    today = end_dt.date()
+    snapshot_day = end_dt.date()
     archive_metrics_day = h._metrics_day
     archive_premium_day = market_ref._premium_day
     archive_funding_day = market_ref._funding_day
 
-    live_metrics_cache: dict[tuple[str, date], list[dict[str, float | int]]] = {}
-    live_premium_cache: dict[tuple[str, date], list[dict[str, float | int]]] = {}
-    live_funding_cache: dict[tuple[str, date], list[dict[str, float | int]]] = {}
+    metric_cache: dict[str, list[dict[str, Any]]] = {}
+    premium_cache: dict[str, list[dict[str, Any]]] = {}
+    funding_cache: dict[str, list[dict[str, Any]]] = {}
 
     def metrics_day(symbol: str, day: date):
         rows = archive_metrics_day(symbol, day)
-        if rows or day != today:
+        if rows or day != snapshot_day:
             return rows
-        key = (symbol, day)
-        if key not in live_metrics_cache:
-            live_metrics_cache[key] = _live_metrics_day(h, symbol, day, end_ms)
-        return live_metrics_cache[key]
+        if symbol not in metric_cache:
+            metric_cache[symbol] = _snapshot_metric_rows(snapshot, symbol)
+        return metric_cache[symbol]
 
     def premium_day(symbol: str, day: date):
         rows = archive_premium_day(symbol, day)
-        if rows or day != today:
+        if rows or day != snapshot_day:
             return rows
-        key = (symbol, day)
-        if key not in live_premium_cache:
-            live_premium_cache[key] = _live_premium_day(h, symbol, day, end_ms)
-        return live_premium_cache[key]
+        if symbol not in premium_cache:
+            premium_cache[symbol] = _snapshot_premium_rows(snapshot, symbol, end_ms)
+        return premium_cache[symbol]
 
     def funding_day(symbol: str, day: date):
         rows = archive_funding_day(symbol, day)
-        if rows or day != today:
+        if rows or day != snapshot_day:
             return rows
-        key = (symbol, day)
-        if key not in live_funding_cache:
-            live_funding_cache[key] = _live_funding_day(h, symbol, day, end_ms)
-        return live_funding_cache[key]
+        if symbol not in funding_cache:
+            funding_cache[symbol] = _snapshot_funding_rows(snapshot, symbol)
+        return funding_cache[symbol]
 
     h._metrics_day = metrics_day
     market_ref._premium_day = premium_day
@@ -384,8 +311,8 @@ def _worst_trade(trades: list[dict[str, Any]]) -> dict[str, Any] | None:
 
 
 def main() -> None:
-    run_started = datetime.now(UTC)
-    test_end_ms = _minute_floor_ms(run_started)
+    snapshot = _load_snapshot()
+    test_end_ms = int(snapshot["snapshot_end_ms_exclusive"])
     test_start_ms = int(TEST_START.timestamp() * 1000)
     end_dt = datetime.fromtimestamp(test_end_ms / 1000, tz=UTC)
 
@@ -410,13 +337,19 @@ def main() -> None:
         market_ref._premium_cache.clear()
         market_ref._funding_cache.clear()
 
-        _install_live_day_fallbacks(h, market_ref, end_dt, test_end_ms)
+        _install_snapshot_fallbacks(h, market_ref, snapshot, end_dt, test_end_ms)
         _sync_engine(h, baseline_run, test_start_ms, test_end_ms)
         _sync_engine(h, protect_run, test_start_ms, test_end_ms)
 
         raw: dict[str, list[tuple]] = {}
         for index, symbol in enumerate(UNIVERSE_10, 1):
-            raw[symbol] = _download_symbol_ytd(h, symbol, end_dt, test_end_ms)
+            raw[symbol] = _download_symbol_ytd(
+                h,
+                snapshot,
+                symbol,
+                end_dt,
+                test_end_ms,
+            )
             print(
                 f"YTD_DATA {index:02d}/{len(UNIVERSE_10)} "
                 f"{symbol} bars={len(raw[symbol])}",
@@ -427,11 +360,11 @@ def main() -> None:
         if missing:
             raise RuntimeError(f"missing YTD price data: {missing}")
 
-        causal_filter = _causal_filter_factory(h, market_ref)
-        baseline = _run_engine(h, baseline_run, raw, causal_filter)
+        baseline_filter = _causal_filter_factory(h, market_ref)
+        baseline = _run_engine(h, baseline_run, raw, baseline_filter)
 
-        causal_filter = _causal_filter_factory(h, market_ref)
-        protected = _run_engine(h, protect_run, raw, causal_filter)
+        protected_filter = _causal_filter_factory(h, market_ref)
+        protected = _run_engine(h, protect_run, raw, protected_filter)
 
         baseline_summary = _summary(baseline)
         protected_summary = _summary(protected)
@@ -461,7 +394,7 @@ def main() -> None:
             "data_policy": {
                 "historical_prices": "Binance Vision monthly archives",
                 "current_month_completed_days": "Binance Vision daily archives",
-                "current_utc_day": "Binance Futures public REST fallback",
+                "current_utc_day": "Binance connector snapshot",
                 "premium_taker_causality": "frozen corrected Strategy 913 timing",
                 "oi_crowding_funding_timing": "unchanged from canonical Strategy 913",
             },
@@ -481,13 +414,24 @@ def main() -> None:
             "protected_worst_trade": _worst_trade(protected["trades_detail"]),
             "baseline_monthly_realized": _monthly_realized(baseline["trades_detail"]),
             "protected_monthly_realized": _monthly_realized(protected["trades_detail"]),
-            "baseline_trades": [_trade_view(item) for item in baseline["trades_detail"]],
-            "protected_trades": [_trade_view(item) for item in protected["trades_detail"]],
+            "baseline_trades": [
+                _trade_view(item) for item in baseline["trades_detail"]
+            ],
+            "protected_trades": [
+                _trade_view(item) for item in protected["trades_detail"]
+            ],
         }
 
         output = Path("strategy913_ytd_protect_only.json")
-        output.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
-        print("STRATEGY913_YTD_PROTECT=" + json.dumps(report, sort_keys=True), flush=True)
+        output.write_text(
+            json.dumps(report, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        print(
+            "STRATEGY913_YTD_PROTECT="
+            + json.dumps(report, sort_keys=True),
+            flush=True,
+        )
 
 
 if __name__ == "__main__":
