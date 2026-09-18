@@ -99,4 +99,4 @@ class JsonlExecutionBus:
             handle.write(event.to_json() + "\n")
             handle.flush()
             os.fsync(handle.fileno())
-        return True\n
+        return True

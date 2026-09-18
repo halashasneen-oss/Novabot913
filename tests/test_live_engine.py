@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from dataclasses import replace
 
 from novabot913.execution_bus import ExecutionEvent
 from novabot913.live_engine import JsonLiveStateStore, Strategy913LiveEngine
@@ -51,9 +52,7 @@ def _bar(
 def test_live_engine_rejects_silent_leverage_change() -> None:
     engine = Strategy913LiveEngine()
     event = _fill()
-    changed = ExecutionEvent(
-        **{**event.__dict__, "event_id": "entry_fill:bad", "leverage": 50.0}
-    )
+    changed = replace(event, event_id="entry_fill:bad", leverage=50.0)
     with pytest.raises(ValueError, match="does not match frozen"):
         engine.apply_execution_event(changed)
 

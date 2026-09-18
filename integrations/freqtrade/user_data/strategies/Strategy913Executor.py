@@ -314,4 +314,4 @@ class Strategy913Executor(IStrategy):
             reason=None if order.ft_is_entry else (order.ft_order_tag or trade.exit_reason),
         )
         JsonlExecutionBus(self.execution_path).append_once(event)
-\n
+
