@@ -4,10 +4,9 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 
-from pandas import DataFrame
-
 from freqtrade.persistence import Trade
 from freqtrade.strategy import IStrategy, stoploss_from_absolute
+from pandas import DataFrame
 
 from novabot913.signal_bus import (
     JsonlIntentBus,
