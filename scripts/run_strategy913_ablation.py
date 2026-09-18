@@ -589,8 +589,8 @@ def main() -> None:
 
         variants: dict[str, Any] = {}
         for mode, run_fn in variant_runs.items():
-            market_ref._premium_cache.clear()
-            market_ref._funding_cache.clear()
+            # Archive Premium/Funding rows are immutable; reuse their download caches.
+            # _run_engine still clears the decision-result cache for each variant.
             variant_filter = _causal_filter_factory(h, market_ref)
             variant = _run_engine(h, run_fn, raw, variant_filter)
             variant_summary = _summary(variant)
