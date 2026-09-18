@@ -1,0 +1,41 @@
+name: Strategy 913 protection OOS
+
+on:
+  push:
+    branches:
+      - research/strategy-913-protection-oos
+    paths:
+      - scripts/run_strategy913_protection_oos.py
+      - .github/workflows/strategy913-protection-oos.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  oos:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        window:
+          - jan_2026
+          - feb_2026
+          - mar_2026
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e '.[dev]'
+      - name: Run protection OOS
+        run: python scripts/run_strategy913_protection_oos.py --window "${{ matrix.window }}"
+      - name: Upload result
+        uses: actions/upload-artifact@v4
+        with:
+          name: strategy913-protection-oos-${{ matrix.window }}
+          path: strategy913_protection_oos_${{ matrix.window }}.json
+          if-no-files-found: error
+          retention-days: 1
