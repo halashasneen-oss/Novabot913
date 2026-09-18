@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from novabot913.strategy913r1_engine import install_r1_patch
 from run_corrected_reference import (
     _causal_filter_factory,
     _load_modules,
@@ -25,6 +24,8 @@ from run_strategy913_ytd_protect import (
     _sync_engine,
     _worst_trade,
 )
+
+from novabot913.strategy913r1_engine import install_r1_patch
 
 
 def _delta(baseline: dict[str, Any], r1: dict[str, Any]) -> dict[str, float]:
