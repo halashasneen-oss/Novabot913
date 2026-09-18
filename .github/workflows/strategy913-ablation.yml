@@ -1,0 +1,43 @@
+name: Strategy 913 ablation research
+
+on:
+  push:
+    branches:
+      - research/strategy-913-ablation
+    paths:
+      - scripts/run_strategy913_ablation.py
+      - .github/workflows/strategy913-ablation.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ablation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        window:
+          - apr_2026
+          - may_2026
+          - jun_jul_2026
+          - jul_aug_2026
+          - aug_sep_2026
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e '.[dev]'
+      - name: Run ablation
+        run: python scripts/run_strategy913_ablation.py --window "${{ matrix.window }}"
+      - name: Upload result
+        uses: actions/upload-artifact@v4
+        with:
+          name: strategy913-ablation-${{ matrix.window }}
+          path: strategy913_ablation_${{ matrix.window }}.json
+          if-no-files-found: error
+          retention-days: 1
