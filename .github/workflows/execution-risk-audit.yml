@@ -40,3 +40,4 @@ jobs:
           name: execution-risk-audit-${{ matrix.window }}
           path: execution_risk_audit_${{ matrix.window }}.json
           if-no-files-found: error
+          retention-days: 1
