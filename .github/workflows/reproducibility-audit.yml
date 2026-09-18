@@ -40,3 +40,4 @@ jobs:
           name: reproducibility-audit-${{ matrix.window }}
           path: reproducibility_audit_${{ matrix.window }}.json
           if-no-files-found: error
+          retention-days: 1
