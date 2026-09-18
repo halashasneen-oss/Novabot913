@@ -100,6 +100,7 @@ class SymbolState:
     pending_entry: PendingEntry | None = None
     position: PositionState | None = None
     exit_pending: bool = False
+    pending_exit_reason: str | None = None
 
 
 @dataclass(slots=True)
@@ -171,6 +172,7 @@ class Strategy913LiveEngine:
             state.armed = None
             state.retest = None
             state.exit_pending = False
+            state.pending_exit_reason = None
         else:
             if state.position is not None and state.position.position_id != event.position_id:
                 message = "exit fill position_id does not match active Strategy 913 position"
@@ -178,6 +180,7 @@ class Strategy913LiveEngine:
             state.position = None
             state.pending_entry = None
             state.exit_pending = False
+            state.pending_exit_reason = None
 
         self.processed_event_ids.add(event.event_id)
 
@@ -354,11 +357,23 @@ class Strategy913LiveEngine:
         bars: list[Bar],
     ) -> list[Strategy913Intent]:
         position = state.position
-        if position is None or state.exit_pending:
+        if position is None:
             return []
 
         candle = bars[-1]
         candle_open_ms = candle[0]
+        if state.exit_pending:
+            return [
+                Strategy913Intent(
+                    symbol=symbol,
+                    candle_open_ms=candle_open_ms,
+                    decision_ms=candle_open_ms + MINUTE_MS,
+                    intent="exit",
+                    side=position.side,
+                    reason=state.pending_exit_reason or "STRATEGY_913_EXIT",
+                    position_id=position.position_id,
+                )
+            ]
         fill_minute = (position.fill_timestamp_ms // MINUTE_MS) * MINUTE_MS
         if candle_open_ms < fill_minute:
             return []
@@ -454,6 +469,7 @@ class Strategy913LiveEngine:
 
         if exit_reason is not None:
             state.exit_pending = True
+            state.pending_exit_reason = exit_reason
             intents.append(
                 Strategy913Intent(
                     symbol=symbol,
@@ -490,6 +506,7 @@ class Strategy913LiveEngine:
                 pending_entry=_restore(PendingEntry, raw.get("pending_entry")),
                 position=_restore(PositionState, raw.get("position")),
                 exit_pending=bool(raw.get("exit_pending", False)),
+                pending_exit_reason=raw.get("pending_exit_reason"),
             )
         return engine
 

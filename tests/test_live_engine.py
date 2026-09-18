@@ -183,3 +183,38 @@ def test_entry_rejection_cannot_clear_different_pending_position() -> None:
 
     assert engine.states[symbol].pending_entry is not None
     assert rejection.event_id not in engine.processed_event_ids
+
+
+def test_pending_exit_is_reemitted_until_fill_feedback() -> None:
+    engine = Strategy913LiveEngine()
+    engine.apply_execution_event(_fill(breakout=99.0))
+    symbol = CANONICAL_UNIVERSE[0]
+    state = engine.states[symbol]
+    state.exit_pending = True
+    state.pending_exit_reason = "FOLLOWTHROUGH_15M"
+
+    first = [_bar(0, open_price=100.0, high=100.1, low=99.9, close=100.0)]
+    retry = engine.process_closed_candle(symbol, first, [], _allow_market)
+
+    assert len(retry) == 1
+    assert retry[0].intent == "exit"
+    assert retry[0].reason == "FOLLOWTHROUGH_15M"
+    assert state.position is not None
+    assert state.position.held_minutes == 0
+
+    exit_fill = ExecutionEvent(
+        event_id="exit_fill:retry",
+        symbol=symbol,
+        event="exit_fill",
+        side="long",
+        timestamp_ms=MINUTE_MS,
+        position_id=state.position.position_id,
+        price=100.0,
+        leverage=75.0,
+        reason="FOLLOWTHROUGH_15M",
+    )
+    engine.apply_execution_event(exit_fill)
+
+    assert state.position is None
+    assert state.exit_pending is False
+    assert state.pending_exit_reason is None
