@@ -1,0 +1,35 @@
+name: Strategy 913 YTD protect-only simulation
+
+on:
+  push:
+    branches:
+      - research/strategy-913-ytd-protect-only
+    paths:
+      - scripts/run_strategy913_ytd_protect.py
+      - scripts/run_strategy913_ablation.py
+      - .github/workflows/strategy913-ytd-protect.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simulate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e '.[dev]'
+      - name: Run continuous YTD simulation
+        run: python scripts/run_strategy913_ytd_protect.py
+      - name: Upload result
+        uses: actions/upload-artifact@v4
+        with:
+          name: strategy913-ytd-protect-only
+          path: strategy913_ytd_protect_only.json
+          if-no-files-found: error
+          retention-days: 1
