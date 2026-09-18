@@ -115,9 +115,7 @@ def main() -> None:
 
         baseline = _run_engine(h, baseline_run, raw, shared_filter)
         baseline_summary = _summary(baseline)
-        baseline_trades = [
-            _trade_view(trade) for trade in baseline["trades_detail"]
-        ]
+        baseline_trades = [_trade_view(trade) for trade in baseline["trades_detail"]]
 
         results: dict[str, Any] = {}
         for name, run_fn in candidate_runs.items():
