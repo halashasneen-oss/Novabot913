@@ -12,6 +12,7 @@ from novabot913.signal_bus import (
     canonical_margin_fraction,
     canonical_progressive_trail,
     canonical_stop_price_risk,
+    make_position_id,
     normalize_symbol,
 )
 
@@ -33,6 +34,11 @@ def _entry(**overrides: object) -> Strategy913Intent:
 def test_symbol_normalization_matches_freqtrade_futures_format() -> None:
     assert normalize_symbol("ZEC/USDT:USDT") == "ZECUSDT"
     assert normalize_symbol("zec-usdt") == "ZECUSDT"
+
+
+def test_position_id_is_deterministic() -> None:
+    assert make_position_id("ZEC/USDT:USDT", 1_000_000, "long") == "ZECUSDT:1000000:long"
+    assert _entry().position_id == "ZECUSDT:1000000:long"
 
 
 def test_intent_requires_exact_completed_minute_decision() -> None:
@@ -60,6 +66,7 @@ def test_exit_requires_reason() -> None:
             decision_ms=1_060_000,
             intent="exit",
             side="long",
+            position_id="ZECUSDT:900000:long",
         )
 
 
@@ -72,6 +79,7 @@ def test_stop_update_requires_positive_price() -> None:
             intent="stop_update",
             side="long",
             stop_price=0.0,
+            position_id="ZECUSDT:900000:long",
         )
 
 
@@ -82,7 +90,7 @@ def test_json_round_trip_keeps_canonical_identity() -> None:
     assert decoded.source_sha == CANONICAL_STRATEGY_913_SHA
 
 
-def test_bus_append_read_and_pair_filter(tmp_path) -> None:
+def test_bus_append_read_pair_filter_and_idempotency(tmp_path) -> None:
     path = tmp_path / "intents.jsonl"
     bus = JsonlIntentBus(path)
     first = _entry()
@@ -92,8 +100,9 @@ def test_bus_append_read_and_pair_filter(tmp_path) -> None:
         decision_ms=1_120_000,
         side="short",
     )
-    bus.append(second)
-    bus.append(first)
+    assert bus.append_once(second)
+    assert bus.append_once(first)
+    assert not bus.append_once(first)
 
     assert bus.read_all() == [first, second]
     assert bus.for_symbol("ZEC/USDT:USDT") == [first]
