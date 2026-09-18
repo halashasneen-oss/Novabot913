@@ -1,0 +1,45 @@
+name: Strategy 913 live-core historical parity
+
+on:
+  push:
+    branches:
+      - integration/freqtrade-913-executor
+    paths:
+      - "scripts/run_live_core_parity.py"
+      - ".github/workflows/live-core-parity.yml"
+      - "src/novabot913/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        window:
+          - apr_2026
+          - may_2026
+          - jun_jul_2026
+          - jul_aug_2026
+          - aug_sep_2026
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e '.[dev]'
+      - name: Replay integrated Strategy 913 live core
+        run: python scripts/run_live_core_parity.py "${{ matrix.window }}"
+      - name: Upload parity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-core-parity-${{ matrix.window }}
+          path: live_core_parity_${{ matrix.window }}.json
+          if-no-files-found: error
+          retention-days: 2
