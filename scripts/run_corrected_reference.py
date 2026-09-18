@@ -3,49 +3,32 @@ from __future__ import annotations
 import importlib
 import json
 import sys
+import shutil
 import tempfile
-import urllib.request
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 from novabot913.temporal import latest_completed_premium, latest_completed_taker
 
-NOVAARB = "https://raw.githubusercontent.com/halashasneen-oss/NovaArb"
-HYBRID_REF = "66a46ab69fef6f82a7eb87afd3175b797a1effc4"
-FOLLOW_MAY_REF = "2f3378c9e05e15a22ae7afb1e0763835c4c6a6a1"
-FOLLOW_AUG_REF = "8164ad60660b45a51e18638a73997fa5cd2c729c"
-
-REFERENCE_FILES = {
-    "tmp_hybrid_zec_score7plus_60d.py": (HYBRID_REF, "tests/tmp_hybrid_zec_score7plus_60d.py"),
-    "tmp_ten_score7plus_flow.py": (HYBRID_REF, "tests/tmp_ten_score7plus_flow.py"),
-    "tmp_zec_extreme_reference.py": (HYBRID_REF, "tests/tmp_zec_extreme_reference.py"),
-    "tmp_hybrid_archive_market.py": (HYBRID_REF, "tests/tmp_hybrid_archive_market.py"),
-    "tmp_followthrough15_may2026_top10.py": (
-        FOLLOW_MAY_REF,
-        "tests/tmp_followthrough15_may2026_top10.py",
-    ),
-    "tmp_strategy_912_40coin_30d.py": (
-        FOLLOW_AUG_REF,
-        "tests/tmp_strategy_912_40coin_30d.py",
-    ),
-    "tmp_followthrough15_30then10.py": (
-        FOLLOW_AUG_REF,
-        "tests/tmp_followthrough15_30then10.py",
-    ),
-}
-
-
-def _download_text(url: str) -> str:
-    request = urllib.request.Request(url, headers={"User-Agent": "Novabot913/1.0"})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return response.read().decode("utf-8")
+REFERENCE_DIR = Path(__file__).resolve().parents[1] / "reference" / "strategy913"
+REFERENCE_FILES = (
+    "tmp_hybrid_zec_score7plus_60d.py",
+    "tmp_ten_score7plus_flow.py",
+    "tmp_zec_extreme_reference.py",
+    "tmp_hybrid_archive_market.py",
+    "tmp_followthrough15_may2026_top10.py",
+    "tmp_strategy_912_40coin_30d.py",
+    "tmp_followthrough15_30then10.py",
+)
 
 
 def _stage_reference_files(directory: Path) -> None:
-    for filename, (ref, source_path) in REFERENCE_FILES.items():
-        url = f"{NOVAARB}/{ref}/{source_path}"
-        (directory / filename).write_text(_download_text(url), encoding="utf-8")
+    for filename in REFERENCE_FILES:
+        source = REFERENCE_DIR / filename
+        if not source.is_file():
+            raise FileNotFoundError(f"missing vendored Strategy 913 reference: {source}")
+        shutil.copyfile(source, directory / filename)
 
 
 def _load_modules(directory: Path) -> dict[str, Any]:
