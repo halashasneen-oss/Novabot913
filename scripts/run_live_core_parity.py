@@ -108,9 +108,7 @@ def _first_trade_divergence(
         if expected is None or actual is None:
             return {"index": index + 1, "canonical": expected, "replay": actual}
 
-        failed = [
-            field for field in exact_fields if expected[field] != actual[field]
-        ]
+        failed = [field for field in exact_fields if expected[field] != actual[field]]
         failed.extend(
             field
             for field in float_fields
@@ -148,9 +146,7 @@ def _core_filter_factory(
         metrics += list(h._metrics_day(symbol, day))
         metrics.sort(key=lambda item: item["timestamp"])
 
-        premium_rows = list(
-            market_ref._premium_day(symbol, day - timedelta(days=1))
-        )
+        premium_rows = list(market_ref._premium_day(symbol, day - timedelta(days=1)))
         premium_rows += list(market_ref._premium_day(symbol, day))
         premium_rows.sort(key=lambda item: item["timestamp"])
 
@@ -178,10 +174,7 @@ def _core_filter_factory(
         )
         reference_pass = bool(reference.get("pass"))
         reference_checks = reference.get("checks") or {}
-        filter_differs = (
-            core.passed != reference_pass
-            or dict(core.checks) != reference_checks
-        )
+        filter_differs = core.passed != reference_pass or dict(core.checks) != reference_checks
         if filter_differs and len(mismatches) < 50:
             mismatches.append(
                 {
@@ -207,32 +200,20 @@ def _replay(
     market_filter: Any,
 ) -> dict[str, Any]:
     if tuple(raw) != CANONICAL_UNIVERSE:
-        raise RuntimeError(
-            "historical universe does not match frozen Strategy 913 universe"
-        )
+        raise RuntimeError("historical universe does not match frozen Strategy 913 universe")
 
     fee_rate = float(h.FEE)
     slippage = float(h.SLIPPAGE)
     start_ms = int(h.TEST_START_MS)
     end_ms = int(h.TEST_END_MS)
 
-    maps = {
-        symbol: {int(bar[0]): bar for bar in bars}
-        for symbol, bars in raw.items()
-    }
+    maps = {symbol: {int(bar[0]): bar for bar in bars} for symbol, bars in raw.items()}
     indices = {
         symbol: {int(bar[0]): index for index, bar in enumerate(bars)}
         for symbol, bars in raw.items()
     }
-    four_hour = {
-        symbol: aggregate(bars, 240)
-        for symbol, bars in raw.items()
-    }
-    timestamps = sorted(
-        ts
-        for ts in maps["BTCUSDT"]
-        if start_ms <= ts < end_ms
-    )
+    four_hour = {symbol: aggregate(bars, 240) for symbol, bars in raw.items()}
+    timestamps = sorted(ts for ts in maps["BTCUSDT"] if start_ms <= ts < end_ms)
 
     engine = Strategy913LiveEngine()
     for state in engine.states.values():
@@ -266,11 +247,7 @@ def _replay(
     ) -> None:
         nonlocal wallet, fees
         pos = positions.pop(symbol)
-        exit_price = (
-            raw_exit * (1.0 - pos["direction"] * slippage)
-            if slip
-            else raw_exit
-        )
+        exit_price = raw_exit * (1.0 - pos["direction"] * slippage) if slip else raw_exit
         move = pos["direction"] * (exit_price / pos["entry"] - 1.0)
         gross = pos["notional"] * move
         exit_fee = pos["notional"] * fee_rate
@@ -312,11 +289,7 @@ def _replay(
     for timestamp in timestamps:
         for intent in scheduled_stops.pop(timestamp, []):
             pos = positions.get(intent.symbol)
-            if (
-                pos is None
-                or pos["position_id"] != intent.position_id
-                or intent.stop_price is None
-            ):
+            if pos is None or pos["position_id"] != intent.position_id or intent.stop_price is None:
                 continue
             if pos["direction"] == 1:
                 pos["stop"] = max(pos["stop"], intent.stop_price)
@@ -344,9 +317,7 @@ def _replay(
             if intent.score is None or intent.breakout_level is None:
                 raise RuntimeError("entry replay intent lost required metadata")
             if intent.symbol in positions:
-                raise RuntimeError(
-                    f"entry replay attempted while {intent.symbol} is active"
-                )
+                raise RuntimeError(f"entry replay attempted while {intent.symbol} is active")
 
             leverage = canonical_leverage(intent.score)
             margin = wallet * canonical_margin_fraction(intent.score)
@@ -356,9 +327,7 @@ def _replay(
                 entry_rejections += 1
                 engine.apply_execution_event(
                     ExecutionEvent(
-                        event_id=(
-                            f"replay_reject:{intent.position_id}:STAKE_ABOVE_MAX"
-                        ),
+                        event_id=(f"replay_reject:{intent.position_id}:STAKE_ABOVE_MAX"),
                         symbol=intent.symbol,
                         event="entry_rejected",
                         side=intent.side,
@@ -375,9 +344,7 @@ def _replay(
 
             bar = maps[intent.symbol].get(timestamp)
             if bar is None:
-                raise RuntimeError(
-                    f"missing entry bar for {intent.symbol} at {timestamp}"
-                )
+                raise RuntimeError(f"missing entry bar for {intent.symbol} at {timestamp}")
             direction = 1 if intent.side == "long" else -1
             entry = float(bar[1]) * (1.0 + direction * slippage)
             notional = margin * leverage
@@ -432,11 +399,7 @@ def _replay(
             low = float(bar[3])
             held = state_pos.held_minutes + 1
 
-            liquidation_gap = (
-                opn <= pos["liq"]
-                if pos["direction"] == 1
-                else opn >= pos["liq"]
-            )
+            liquidation_gap = opn <= pos["liq"] if pos["direction"] == 1 else opn >= pos["liq"]
             if liquidation_gap:
                 liquidations += 1
                 wallet -= pos["margin"]
@@ -475,22 +438,10 @@ def _replay(
                 )
                 continue
 
-            stop_hit = (
-                low <= pos["stop"]
-                if pos["direction"] == 1
-                else high >= pos["stop"]
-            )
+            stop_hit = low <= pos["stop"] if pos["direction"] == 1 else high >= pos["stop"]
             if stop_hit:
-                raw_exit = (
-                    min(pos["stop"], opn)
-                    if pos["direction"] == 1
-                    else max(pos["stop"], opn)
-                )
-                reason = (
-                    "TRAIL_STOP"
-                    if state_pos.mfe >= 1.5 * pos["risk"]
-                    else "STOP"
-                )
+                raw_exit = min(pos["stop"], opn) if pos["direction"] == 1 else max(pos["stop"], opn)
+                reason = "TRAIL_STOP" if state_pos.mfe >= 1.5 * pos["risk"] else "STOP"
                 exit_position(
                     symbol,
                     raw_exit,
@@ -503,9 +454,7 @@ def _replay(
         for symbol in CANONICAL_UNIVERSE:
             index = indices[symbol].get(timestamp)
             if index is None:
-                raise RuntimeError(
-                    f"missing replay candle for {symbol} at {timestamp}"
-                )
+                raise RuntimeError(f"missing replay candle for {symbol} at {timestamp}")
             history_start = max(0, index - 499)
             history = raw[symbol][history_start : index + 1]
             intents = engine.process_closed_candle(
@@ -528,9 +477,7 @@ def _replay(
             bar = maps[symbol].get(timestamp)
             if bar is None:
                 continue
-            move = pos["direction"] * (
-                float(bar[4]) / pos["entry"] - 1.0
-            )
+            move = pos["direction"] * (float(bar[4]) / pos["entry"] - 1.0)
             marked += pos["notional"] * move
         peak = max(peak, marked)
         trough = min(trough, marked)
@@ -570,11 +517,7 @@ def _replay(
         "trades": len(trades),
         "wins": wins,
         "losses": len(trades) - wins,
-        "win_rate_pct": (
-            round(100.0 * wins / len(trades), 2)
-            if trades
-            else 0.0
-        ),
+        "win_rate_pct": (round(100.0 * wins / len(trades), 2) if trades else 0.0),
         "profit_factor": (
             round(gross_profit / gross_loss, 3)
             if gross_loss
@@ -614,10 +557,7 @@ def _summary_checks(
         "trough_marked_equity",
         "max_drawdown_pct",
     )
-    checks = {
-        f"{key}_matches": canonical.get(key) == replay.get(key)
-        for key in exact
-    }
+    checks = {f"{key}_matches": canonical.get(key) == replay.get(key) for key in exact}
     for key in approximate:
         left = canonical.get(key)
         right = replay.get(key)
@@ -649,9 +589,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    with tempfile.TemporaryDirectory(
-        prefix=f"novabot913-live-core-parity-{args.window}-"
-    ) as tmp:
+    with tempfile.TemporaryDirectory(prefix=f"novabot913-live-core-parity-{args.window}-") as tmp:
         directory = Path(tmp)
         _stage_reference_files(directory)
         modules = _load_modules(directory)
@@ -663,10 +601,7 @@ def main() -> None:
             raise SystemExit("prepared universe differs from canonical live universe")
 
         btc_bars = raw["BTCUSDT"]
-        btc_index = {
-            int(bar[0]): index
-            for index, bar in enumerate(btc_bars)
-        }
+        btc_index = {int(bar[0]): index for index, bar in enumerate(btc_bars)}
         reference_filter = _causal_filter_factory(h, market_ref)
         canonical_result = _run_engine(
             h,
@@ -692,11 +627,7 @@ def main() -> None:
             replay["trades_detail"],
         )
 
-        passed = (
-            all(checks.values())
-            and trade_divergence is None
-            and not filter_mismatches
-        )
+        passed = all(checks.values()) and trade_divergence is None and not filter_mismatches
         report = {
             "phase": "strategy_913_live_core_historical_parity",
             "canonical_strategy_sha": CANONICAL_STRATEGY_SHA,
@@ -704,23 +635,15 @@ def main() -> None:
             "window_name": args.window,
             "window": window,
             "canonical": canonical_summary,
-            "replay": {
-                key: value
-                for key, value in replay.items()
-                if key != "trades_detail"
-            },
+            "replay": {key: value for key, value in replay.items() if key != "trades_detail"},
             "summary_checks": checks,
             "first_trade_divergence": trade_divergence,
             "filter_mismatch_count": len(filter_mismatches),
             "filter_mismatches": filter_mismatches,
             "canonical_trades": [
-                _canonical_trade_view(item)
-                for item in canonical_result["trades_detail"]
+                _canonical_trade_view(item) for item in canonical_result["trades_detail"]
             ],
-            "replay_trades": [
-                _replay_trade_view(item)
-                for item in replay["trades_detail"]
-            ],
+            "replay_trades": [_replay_trade_view(item) for item in replay["trades_detail"]],
             "pass": passed,
         }
         output = Path(f"live_core_parity_{args.window}.json")
@@ -729,8 +652,7 @@ def main() -> None:
             encoding="utf-8",
         )
         print(
-            "LIVE_CORE_PARITY="
-            + json.dumps(report, sort_keys=True),
+            "LIVE_CORE_PARITY=" + json.dumps(report, sort_keys=True),
             flush=True,
         )
         if not passed:
