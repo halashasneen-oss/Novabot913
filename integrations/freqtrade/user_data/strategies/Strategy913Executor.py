@@ -94,9 +94,7 @@ class Strategy913Executor(IStrategy):
         if dataframe.empty:
             return dataframe
 
-        row_by_ms = {
-            self._candle_ms(value): index for index, value in dataframe["date"].items()
-        }
+        row_by_ms = {self._candle_ms(value): index for index, value in dataframe["date"].items()}
         for intent in self._intents(metadata["pair"]):
             row_index = row_by_ms.get(intent.candle_open_ms)
             if row_index is None:
