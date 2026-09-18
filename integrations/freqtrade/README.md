@@ -1,65 +1,125 @@
 # Strategy 913 + Freqtrade Integration
 
-Status: research / dry-run integration.
+Status: causal live producer + Freqtrade dry-run execution integration.
 
-This directory adds a separate execution adapter. It does not modify any file under
-reference/strategy913, any existing canonical documentation, or any audited runner.
+The integration is isolated from the frozen canonical implementation. It does not edit
+`reference/strategy913/`, canonical documentation, or audited historical runners.
 
 Canonical Strategy 913 remains pinned to:
-158fb1c45a0cf88d549e301913f43435c337d7a1
 
-Architecture:
+`158fb1c45a0cf88d549e301913f43435c337d7a1`
 
-    Strategy 913 causal engine
-            |
-            | append-only causal intents (JSONL)
-            v
-    JsonlIntentBus
-            |
-            v
+## Architecture
+
+    Binance USD-M public market data
+                  |
+                  v
+    Strategy913LiveEngine
+    4H setup -> micro confirmation -> retest -> market filters
+                  |
+                  | Strategy913Intent (append-only JSONL)
+                  v
     Strategy913Executor (Freqtrade IStrategy)
-            |
-            v
-    Freqtrade execution infrastructure
-            |
-            v
+                  |
+                  v
+    Freqtrade order / wallet / persistence layer
+                  |
+                  v
     Binance USD-M Futures
+                  |
+                  | actual entry/exit fills
+                  v
+    JsonlExecutionBus
+                  |
+                  +----------------------> Strategy913LiveEngine
 
-Supported intents are enter, exit and stop_update.
+The two-way bridge is intentional. Strategy 913 owns the trading decision and frozen risk rules.
+Freqtrade owns exchange execution. Actual Freqtrade fill price, time and leverage are returned to
+the Strategy 913 engine before live position management continues.
 
-Every one-minute intent is rejected unless decision_ms equals candle_open_ms + 60000.
-Entry intents require score and breakout_level. Exit intents require a reason. Stop updates
-require an absolute stop_price. The bus also rejects a non-canonical source SHA and duplicate
-execution keys.
+## Frozen behavior preserved
 
-The adapter preserves the frozen sizing and leverage requests:
-- score >= 6: 50% of total wallet margin and 75x requested leverage
-- score 5: 35% of total wallet margin and 50x requested leverage
+The live core carries the canonical 10-symbol universe:
 
-Freqtrade still caps leverage to the exchange maximum. If the full requested margin is not
-available, the adapter rejects the entry rather than silently shrinking it. No fixed take-profit
-is added.
+- DOGEUSDT
+- BTCUSDT
+- XRPUSDT
+- TIAUSDT
+- 1000PEPEUSDT
+- DOTUSDT
+- UNIUSDT
+- SUIUSDT
+- WIFUSDT
+- ETCUSDT
 
-The example configuration keeps dry_run enabled. Do not add Binance API keys for the first
-validation pass.
+It preserves the frozen 4H setup, Score, 1m/3m/5m micro confirmation, retest, market filters,
+Early Failure, 15-minute Follow-through, progressive trailing and 12-hour maximum hold.
 
-Typical setup:
+Authorized temporal corrections remain limited to Premium and Taker 5-minute observations being
+available only after the represented five-minute interval is complete. OI, Crowding and Funding
+retain the frozen timing semantics.
 
-    pip install -e .
-    export NOVABOT913_INTENT_FILE=/absolute/path/to/strategy913_intents.jsonl
+Sizing and requested leverage remain unchanged:
+
+- Score 5: 35% of wallet margin, 50x.
+- Score >= 6: 50% of wallet margin, 75x.
+
+If Freqtrade/Binance cannot provide the exact requested leverage, the adapter rejects the entry
+instead of silently changing Strategy 913. If the full requested stake does not fit the available
+stake constraint, the entry is also rejected.
+
+No fixed take-profit is added.
+
+## Causal and restart protections
+
+- Every one-minute intent requires `decision_ms == candle_open_ms + 60000`.
+- Position IDs are deterministic and scope all stop/exit events to the intended trade.
+- Intent and execution buses are append-only and idempotent.
+- The first producer start bootstraps at the latest closed minute without retroactive entries.
+- After a restart, the producer replays available missing closed candles in order.
+- A missing temporal gap is rejected instead of silently skipped.
+- Live state is written atomically to JSON after processing.
+- Freqtrade returns actual fills to the live engine through the execution bus.
+- The example Freqtrade configuration keeps `dry_run: true` and contains no credentials.
+
+## State files
+
+Defaults can be overridden with environment variables:
+
+    NOVABOT913_INTENT_FILE=user_data/data/strategy913_intents.jsonl
+    NOVABOT913_EXECUTION_FILE=user_data/data/strategy913_execution.jsonl
+    NOVABOT913_STATE_FILE=user_data/data/strategy913_live_state.json
+
+The producer and Freqtrade process must point to the same intent and execution files.
+
+## Dry-run setup
+
+Install Novabot913:
+
+    python -m pip install -e .
+
+Install the tested Freqtrade stable release:
+
+    python -m pip install "freqtrade==2026.8"
+
+Start the signal producer:
+
+    python scripts/run_live_signal_producer.py
+
+In another process, start Freqtrade:
+
     freqtrade trade \
       --config integrations/freqtrade/config.dryrun.example.json \
       --strategy-path integrations/freqtrade/user_data/strategies \
       --strategy Strategy913Executor
 
-Important boundary:
+Do not change `dry_run` to `false` during integration validation.
 
-The execution adapter is implemented, but the current production package still contains only the
-causal temporal helpers for Premium and Taker. The frozen Strategy 913 reference is primarily an
-audited historical engine. A dedicated live causal intent producer still has to reproduce the
-frozen 4H setup -> micro confirmation -> retest -> market filters -> entry/exit state machine and
-pass parity tests against the canonical artifact before live trading can be considered.
+## Validation boundary
 
-Keeping the causal decision engine separate from Freqtrade is deliberate: it reduces the chance of
-silently changing the already-audited timing semantics while letting Freqtrade focus on exchange
-execution, persistence, order lifecycle, wallets and fills.
+Passing unit tests and loading successfully in Freqtrade verifies the software contract, callback
+compatibility and frozen-rule parity checks implemented in this branch. It does not prove live
+profitability and does not make historical candle execution identical to exchange microstructure.
+
+Historical simulation/parity replay is intentionally kept as the final validation stage after the
+engineering integration is green.

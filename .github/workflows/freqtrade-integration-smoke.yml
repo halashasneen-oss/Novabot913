@@ -1,0 +1,44 @@
+name: Freqtrade integration smoke
+
+on:
+  push:
+    branches:
+      - integration/freqtrade-913-executor
+    paths:
+      - "integrations/freqtrade/**"
+      - "src/novabot913/**"
+      - "pyproject.toml"
+      - ".github/workflows/freqtrade-integration-smoke.yml"
+  workflow_dispatch:
+
+jobs:
+  load-strategy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Novabot913
+        run: python -m pip install -e .
+      - name: Install pinned Freqtrade stable
+        run: python -m pip install "freqtrade==2026.8"
+      - name: Validate example configuration
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("integrations/freqtrade/config.dryrun.example.json")
+          config = json.loads(path.read_text(encoding="utf-8"))
+          assert config["dry_run"] is True
+          assert config["trading_mode"] == "futures"
+          assert config["exchange"]["api_key"] == ""
+          assert config["exchange"]["secret"] == ""
+          PY
+      - name: Load Strategy913Executor in Freqtrade
+        run: |
+          freqtrade list-strategies \
+            --strategy-path integrations/freqtrade/user_data/strategies \
+            | tee /tmp/strategies.txt
+          grep -q "Strategy913Executor" /tmp/strategies.txt

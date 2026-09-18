@@ -14,7 +14,7 @@
   "cancel_open_orders_on_exit": true,
   "exchange": {
     "name": "binance",
-    "key": "",
+    "api_key": "",
     "secret": "",
     "ccxt_config": {},
     "ccxt_async_config": {},
@@ -53,4 +53,3 @@
     "unit": "minutes"
   }
 }
-\n
