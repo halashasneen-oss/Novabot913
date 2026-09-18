@@ -40,3 +40,4 @@ jobs:
           name: canonical-trade-audit-${{ matrix.window }}
           path: canonical_trade_audit_${{ matrix.window }}.json
           if-no-files-found: error
+          retention-days: 1
