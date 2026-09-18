@@ -19,16 +19,16 @@
     "ccxt_config": {},
     "ccxt_async_config": {},
     "pair_whitelist": [
-      "BTC/USDT:USDT",
-      "ETH/USDT:USDT",
-      "SOL/USDT:USDT",
-      "XRP/USDT:USDT",
       "DOGE/USDT:USDT",
-      "ZEC/USDT:USDT",
-      "HYPE/USDT:USDT",
+      "BTC/USDT:USDT",
+      "XRP/USDT:USDT",
+      "TIA/USDT:USDT",
+      "1000PEPE/USDT:USDT",
+      "DOT/USDT:USDT",
+      "UNI/USDT:USDT",
       "SUI/USDT:USDT",
-      "ENA/USDT:USDT",
-      "ARB/USDT:USDT"
+      "WIF/USDT:USDT",
+      "ETC/USDT:USDT"
     ],
     "pair_blacklist": []
   },
@@ -53,3 +53,4 @@
     "unit": "minutes"
   }
 }
+\n
