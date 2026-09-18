@@ -8,7 +8,7 @@ from typing import Literal
 
 from novabot913.signal_bus import Side, normalize_symbol
 
-ExecutionEventType = Literal["entry_fill", "exit_fill"]
+ExecutionEventType = Literal["entry_fill", "exit_fill", "entry_rejected"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,9 +20,9 @@ class ExecutionEvent:
     event: ExecutionEventType
     side: Side
     timestamp_ms: int
-    price: float
-    leverage: float
     position_id: str
+    price: float | None = None
+    leverage: float | None = None
     order_id: str | None = None
     score: int | None = None
     breakout_level: float | None = None
@@ -35,12 +35,14 @@ class ExecutionEvent:
             raise ValueError("event_id cannot be empty")
         if self.timestamp_ms < 0:
             raise ValueError("timestamp_ms must be non-negative")
-        if self.price <= 0:
-            raise ValueError("fill price must be positive")
-        if self.leverage <= 0:
-            raise ValueError("leverage must be positive")
         if not self.position_id:
             raise ValueError("position_id cannot be empty")
+
+        if self.event in {"entry_fill", "exit_fill"}:
+            if self.price is None or self.price <= 0:
+                raise ValueError("fill event requires a positive price")
+            if self.leverage is None or self.leverage <= 0:
+                raise ValueError("fill event requires positive leverage")
 
         if self.event == "entry_fill":
             if self.score is None or self.score < 5:
@@ -49,6 +51,15 @@ class ExecutionEvent:
                 raise ValueError("entry fill requires breakout_level")
             if self.source_candle_open_ms is None or self.source_candle_open_ms < 0:
                 raise ValueError("entry fill requires source_candle_open_ms")
+        elif self.event == "entry_rejected":
+            if not self.reason:
+                raise ValueError("entry rejection requires reason")
+            if self.score is None or self.score < 5:
+                raise ValueError("entry rejection requires Strategy 913 score >= 5")
+            if self.breakout_level is None or self.breakout_level <= 0:
+                raise ValueError("entry rejection requires breakout_level")
+            if self.source_candle_open_ms is None or self.source_candle_open_ms < 0:
+                raise ValueError("entry rejection requires source_candle_open_ms")
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), separators=(",", ":"), sort_keys=True)

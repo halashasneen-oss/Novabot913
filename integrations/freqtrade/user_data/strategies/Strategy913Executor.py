@@ -61,6 +61,38 @@ class Strategy913Executor(IStrategy):
     def _intents(self, pair: str) -> list[Strategy913Intent]:
         return JsonlIntentBus(self.intent_path).for_symbol(pair)
 
+    def _reject_entry(
+        self,
+        pair: str,
+        current_time: datetime,
+        entry_tag: str | None,
+        side: str,
+        reason: str,
+        leverage: float | None,
+    ) -> None:
+        parsed = self._parse_tag(entry_tag)
+        if parsed is None:
+            return
+
+        score, breakout, candle_open_ms = parsed
+        normalized_side = "short" if side == "short" else "long"
+        position_id = make_position_id(pair, candle_open_ms, normalized_side)
+        timestamp_ms = int(current_time.astimezone(UTC).timestamp() * 1000)
+        event = ExecutionEvent(
+            event_id=f"entry_rejected:{position_id}:{reason}",
+            symbol=pair,
+            event="entry_rejected",
+            side=normalized_side,
+            timestamp_ms=timestamp_ms,
+            position_id=position_id,
+            leverage=leverage,
+            score=score,
+            breakout_level=breakout,
+            source_candle_open_ms=candle_open_ms,
+            reason=reason,
+        )
+        JsonlExecutionBus(self.execution_path).append_once(event)
+
     @staticmethod
     def _tag(intent: Strategy913Intent) -> str:
         breakout = intent.breakout_level or 0.0
@@ -181,13 +213,37 @@ class Strategy913Executor(IStrategy):
         score, _, _ = parsed
         requested_leverage = canonical_leverage(score)
         if abs(leverage - requested_leverage) > 1e-9:
+            self._reject_entry(
+                pair,
+                current_time,
+                entry_tag,
+                side,
+                "LEVERAGE_UNAVAILABLE",
+                leverage,
+            )
             return 0.0
 
         total_stake = self.wallets.get_total_stake_amount()
         requested = total_stake * canonical_margin_fraction(score)
         if requested > max_stake:
+            self._reject_entry(
+                pair,
+                current_time,
+                entry_tag,
+                side,
+                "STAKE_ABOVE_MAX",
+                leverage,
+            )
             return 0.0
         if min_stake is not None and requested < min_stake:
+            self._reject_entry(
+                pair,
+                current_time,
+                entry_tag,
+                side,
+                "STAKE_BELOW_MIN",
+                leverage,
+            )
             return 0.0
         return requested
 
@@ -210,7 +266,17 @@ class Strategy913Executor(IStrategy):
         score, breakout, candle_open_ms = parsed
         current_ms = int(current_time.astimezone(UTC).timestamp() * 1000)
         decision_ms = candle_open_ms + 60_000
-        if current_ms < decision_ms or current_ms > decision_ms + 90_000:
+        if current_ms < decision_ms:
+            return False
+        if current_ms > decision_ms + 90_000:
+            self._reject_entry(
+                pair,
+                current_time,
+                entry_tag,
+                side,
+                "ENTRY_STALE",
+                None,
+            )
             return False
 
         expected_side = "short" if side == "short" else "long"

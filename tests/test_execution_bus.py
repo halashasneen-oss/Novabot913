@@ -56,3 +56,41 @@ def test_exit_fill_does_not_require_entry_metadata() -> None:
         reason="TRAIL_STOP",
     )
     assert event.reason == "TRAIL_STOP"
+
+
+def test_entry_rejection_requires_reason_and_metadata() -> None:
+    event = ExecutionEvent(
+        event_id="entry_rejected:DOGEUSDT:1060000:long:LEVERAGE_UNAVAILABLE",
+        symbol="DOGEUSDT",
+        event="entry_rejected",
+        side="long",
+        timestamp_ms=1_120_000,
+        position_id="DOGEUSDT:1060000:long",
+        leverage=20.0,
+        score=6,
+        breakout_level=0.249,
+        source_candle_open_ms=1_060_000,
+        reason="LEVERAGE_UNAVAILABLE",
+    )
+    assert event.price is None
+    assert event.reason == "LEVERAGE_UNAVAILABLE"
+
+    with pytest.raises(ValueError, match="rejection requires reason"):
+        ExecutionEvent(
+            event_id="entry_rejected:bad",
+            symbol="DOGEUSDT",
+            event="entry_rejected",
+            side="long",
+            timestamp_ms=1_120_000,
+            position_id="DOGEUSDT:1060000:long",
+            score=6,
+            breakout_level=0.249,
+            source_candle_open_ms=1_060_000,
+        )
+
+
+def test_fill_event_still_requires_price_and_leverage() -> None:
+    with pytest.raises(ValueError, match="positive price"):
+        _entry_fill(price=None)
+    with pytest.raises(ValueError, match="positive leverage"):
+        _entry_fill(leverage=None)

@@ -5,7 +5,11 @@ from dataclasses import replace
 import pytest
 
 from novabot913.execution_bus import ExecutionEvent
-from novabot913.live_engine import JsonLiveStateStore, Strategy913LiveEngine
+from novabot913.live_engine import (
+    JsonLiveStateStore,
+    PendingEntry,
+    Strategy913LiveEngine,
+)
 from novabot913.signal_bus import make_position_id
 from novabot913.strategy_core import CANONICAL_UNIVERSE, MINUTE_MS, MarketFilterResult
 
@@ -114,3 +118,68 @@ def test_non_contiguous_candle_is_rejected() -> None:
     skipped = first + [_bar(2 * MINUTE_MS, open_price=1.0, high=1.0, low=1.0, close=1.0)]
     with pytest.raises(ValueError, match="non-contiguous"):
         engine.process_closed_candle(symbol, skipped, [], _allow_market)
+
+
+def test_entry_rejection_clears_only_matching_pending_entry() -> None:
+    engine = Strategy913LiveEngine()
+    symbol = CANONICAL_UNIVERSE[0]
+    position_id = make_position_id(symbol, 0, "long")
+    engine.states[symbol].pending_entry = PendingEntry(
+        position_id=position_id,
+        side="long",
+        score=6,
+        breakout_level=101.0,
+        source_candle_open_ms=0,
+        expires_ms=3 * MINUTE_MS,
+    )
+    rejection = ExecutionEvent(
+        event_id="entry_rejected:matching",
+        symbol=symbol,
+        event="entry_rejected",
+        side="long",
+        timestamp_ms=MINUTE_MS,
+        position_id=position_id,
+        leverage=20.0,
+        score=6,
+        breakout_level=101.0,
+        source_candle_open_ms=0,
+        reason="LEVERAGE_UNAVAILABLE",
+    )
+
+    engine.apply_execution_event(rejection)
+
+    assert engine.states[symbol].pending_entry is None
+    assert engine.states[symbol].position is None
+    assert rejection.event_id in engine.processed_event_ids
+
+
+def test_entry_rejection_cannot_clear_different_pending_position() -> None:
+    engine = Strategy913LiveEngine()
+    symbol = CANONICAL_UNIVERSE[0]
+    pending_id = make_position_id(symbol, 0, "long")
+    engine.states[symbol].pending_entry = PendingEntry(
+        position_id=pending_id,
+        side="long",
+        score=6,
+        breakout_level=101.0,
+        source_candle_open_ms=0,
+        expires_ms=3 * MINUTE_MS,
+    )
+    rejection = ExecutionEvent(
+        event_id="entry_rejected:mismatch",
+        symbol=symbol,
+        event="entry_rejected",
+        side="long",
+        timestamp_ms=MINUTE_MS,
+        position_id=make_position_id(symbol, MINUTE_MS, "long"),
+        score=6,
+        breakout_level=101.0,
+        source_candle_open_ms=MINUTE_MS,
+        reason="STAKE_ABOVE_MAX",
+    )
+
+    with pytest.raises(ValueError, match="does not match pending"):
+        engine.apply_execution_event(rejection)
+
+    assert engine.states[symbol].pending_entry is not None
+    assert rejection.event_id not in engine.processed_event_ids

@@ -129,8 +129,22 @@ class Strategy913LiveEngine:
             raise ValueError(f"execution event symbol outside canonical universe: {event.symbol}")
 
         state = self.states[event.symbol]
+        if event.event == "entry_rejected":
+            pending = state.pending_entry
+            if pending is not None and pending.position_id != event.position_id:
+                raise ValueError("entry rejection does not match pending Strategy 913 position")
+            if pending is not None:
+                state.pending_entry = None
+            self.processed_event_ids.add(event.event_id)
+            return
+
         if event.event == "entry_fill":
-            if event.score is None or event.breakout_level is None:
+            if (
+                event.score is None
+                or event.breakout_level is None
+                or event.price is None
+                or event.leverage is None
+            ):
                 raise ValueError("entry fill is missing Strategy 913 metadata")
             expected_leverage = canonical_leverage(event.score)
             if abs(event.leverage - expected_leverage) > 1e-9:
