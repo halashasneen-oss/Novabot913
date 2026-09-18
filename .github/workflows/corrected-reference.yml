@@ -29,3 +29,4 @@ jobs:
           name: corrected-causal-reference
           path: corrected_causal_reference.json
           if-no-files-found: error
+          retention-days: 1
