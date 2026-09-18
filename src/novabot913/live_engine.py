@@ -499,3 +499,18 @@ class JsonLiveStateStore:
 
     def load(self) -> Strategy913LiveEngine:
         if not self.path.exists():
+            return Strategy913LiveEngine()
+        payload = json.loads(self.path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise TypeError("live state must decode to an object")
+        return Strategy913LiveEngine.from_snapshot(payload)
+
+    def save(self, engine: Strategy913LiveEngine) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.path.with_name(self.path.name + ".tmp")
+        with temporary.open("w", encoding="utf-8") as handle:
+            json.dump(engine.snapshot(), handle, indent=2, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, self.path)
